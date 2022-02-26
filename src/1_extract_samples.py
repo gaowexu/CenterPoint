@@ -8,19 +8,6 @@ class SamplesExtractor(object):
     def __init__(self, kitti_dataset_root_dir, dump_dataset_root_dir):
         self._kitti_dataset_root_dir = kitti_dataset_root_dir
         self._dump_dataset_root_dir = dump_dataset_root_dir
-
-        self._categories_color = {
-            'Car': [255, 0, 0],             # red
-            'DontCare': [0, 0, 0],          # black
-            'Pedestrian': [0, 0, 255],      # blue
-            'Van': [255, 255, 0],           # yellow
-            'Cyclist': [255, 0, 255],       # magenta
-            'Truck': [0, 255, 255],         # cyan
-            'Misc': [127, 0, 0],            # maroon
-            'Tram': [0, 127, 0],            # green
-            'Person_sitting': [0, 0, 127]   # navy
-        }
-
         self._lidar_dir = os.path.join(self._dump_dataset_root_dir, "lidar_data")
         self._gt_dir = os.path.join(self._dump_dataset_root_dir, "ground_truth")
         if not os.path.exists(self._lidar_dir):
