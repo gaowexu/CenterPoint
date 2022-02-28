@@ -5,6 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from voxel_generator import VoxelGenerator
+# from voxel_gen import VoxelGenerator
 
 
 class CenterPointDataset(Dataset):
@@ -50,7 +51,7 @@ class CenterPointDataset(Dataset):
         lidar_data_full_path = self._samples[index]["lidar_data"]
         gt_data_full_path = self._samples[index]["ground_truth"]
 
-        points_cloud = np.fromfile(lidar_data_full_path)
+        points_cloud = np.load(lidar_data_full_path)
         ground_truth = json.load(open(gt_data_full_path, "r"))
 
         ret_data = {
@@ -67,8 +68,8 @@ class CenterPointDataset(Dataset):
         nums_per_voxel_list = list()
 
         for index, sample in enumerate(batch_list):
-            voxels, indices, num_per_voxel, _ = self._voxel_generator.generate(points=sample["points_cloud"])
-            print(voxels.shape, indices.shape, num_per_voxel.shape)
+            points = sample["points_cloud"]
+            voxels, indices, num_per_voxel, _ = self._voxel_generator.generate(points=points)
 
             voxels_list.append(voxels)
             indices_list.append(indices)
@@ -117,7 +118,6 @@ if __name__ == "__main__":
         print("batch_sample_indices.shape = {}".format(batch_sample_indices.shape))
 
         print("\n")
+        break
 
-
-
-
+    print(len(train_dataloader))
