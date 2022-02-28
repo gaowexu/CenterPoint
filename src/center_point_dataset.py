@@ -5,7 +5,6 @@ import numpy as np
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from voxel_generator import VoxelGenerator
-# from voxel_gen import VoxelGenerator
 
 
 class CenterPointDataset(Dataset):
