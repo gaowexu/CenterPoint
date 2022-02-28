@@ -98,6 +98,7 @@ class CenterHead(nn.Module):
                     use_bias=self.model_cfg.get('USE_BIAS_BEFORE_NORM', False)
                 )
             )
+
         self.predict_boxes_when_training = predict_boxes_when_training
         self.forward_ret_dict = {}
         self.build_losses()

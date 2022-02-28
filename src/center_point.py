@@ -45,8 +45,10 @@ class CenterPoint(nn.Module):
         # Backbone特征提取器
         self._point_pillars_backbone = PointPillarBackbone()
 
-        # 检测头
+        # First Stage 检测头
         self._center_point_bbox_head = CenterHead()
+
+        # Second Stage
 
     def forward(self, voxels, indices, nums_per_voxel, sample_indices):
         """
@@ -85,7 +87,7 @@ class CenterPoint(nn.Module):
 
 if __name__ == '__main__':
     import numpy as np
-    from point_pillars_voxelization import VoxelGenerator
+    from voxel_generator import VoxelGenerator
 
     with open('./temp/points_velodyne_000008.npy', 'rb') as f1:
         points_sample_000008 = np.load(f1)

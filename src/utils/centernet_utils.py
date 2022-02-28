@@ -1,5 +1,3 @@
-# This file is modified from https://github.com/tianweiy/CenterPoint
-
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -7,13 +5,6 @@ import numba
 
 
 def gaussian_radius(height, width, min_overlap=0.5):
-    """
-    Args:
-        height: (N)
-        width: (N)
-        min_overlap:
-    Returns:
-    """
     a1 = 1
     b1 = (height + width)
     c1 = width * height * (1 - min_overlap) / (1 + min_overlap)
@@ -109,9 +100,7 @@ def _circle_nms(boxes, min_radius, post_max_size=83):
     NMS according to center distance
     """
     keep = np.array(circle_nms(boxes.cpu().numpy(), thresh=min_radius))[:post_max_size]
-
     keep = torch.from_numpy(keep).long().to(boxes.device)
-
     return keep
 
 
@@ -133,27 +122,54 @@ def _transpose_and_gather_feat(feat, ind):
     return feat
 
 
-def _topk(scores, K=40):
-    batch, num_class, height, width = scores.size()
+def _top_k(center_ness_heatmap, K=500):
+    """
 
-    topk_scores, topk_inds = torch.topk(scores.flatten(2, 3), K)
+    :param center_ness_heatmap: torch.tensor, 形状为(batch_size, num_class, nx/2, ny/2)
+    :param K:
+    :return:
+    """
+    # center_ness_heatmap的形状为 torch.Size([4, 2, 216, 248])
+    batch_size, num_class, height, width = center_ness_heatmap.size()
 
-    topk_inds = topk_inds % (height * width)
-    topk_ys = (topk_inds // width).float()
-    topk_xs = (topk_inds % width).int().float()
+    # top_k_scores.shape = torch.Size([4, 2, 500])
+    # top_k_indices.shape = torch.Size([4, 2, 500])
+    top_k_scores, top_k_indices = torch.topk(center_ness_heatmap.flatten(start_dim=2, end_dim=3), K)
 
-    topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K)
-    topk_classes = (topk_ind // K).int()
-    topk_inds = _gather_feat(topk_inds.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K)
+    top_k_indices = top_k_indices % (height * width)
 
-    return topk_score, topk_inds, topk_classes, topk_ys, topk_xs
+    top_k_ys = (top_k_indices // width).float()
+    top_k_xs = (top_k_indices % width).int().float()
+
+    # top_k_score.shape = torch.Size([4, 500])
+    # top_k_ind.shape = torch.Size([4, 500])
+    top_k_score, top_k_ind = torch.topk(top_k_scores.view(batch_size, -1), K)
+    print(top_k_score.shape, top_k_ind.shape)
+
+    top_k_classes = (top_k_ind // K).int()
+    top_k_indices = _gather_feat(top_k_indices.view(batch_size, -1, 1), top_k_ind).view(batch_size, K)
+    top_k_ys = _gather_feat(top_k_ys.view(batch_size, -1, 1), top_k_ind).view(batch_size, K)
+    top_k_xs = _gather_feat(top_k_xs.view(batch_size, -1, 1), top_k_ind).view(batch_size, K)
+
+    return top_k_score, top_k_indices, top_k_classes, top_k_ys, top_k_xs
 
 
-def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
-                             point_cloud_range=None, voxel_size=None, feature_map_stride=None, vel=None, K=100,
-                             circle_nms=False, score_thresh=None, post_center_limit_range=None):
+def decode_bbox_from_heatmap(
+        heatmap,
+        rot_cos,
+        rot_sin,
+        center,
+        center_z,
+        dim,
+        point_cloud_range=None,
+        voxel_size=None,
+        feature_map_stride=None,
+        vel=None,
+        K=100,
+        circle_nms=False,
+        score_thresh=None,
+        post_center_limit_range=None):
+
     batch_size, num_class, _, _ = heatmap.size()
 
     if circle_nms:
@@ -161,12 +177,13 @@ def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
         assert False, 'not checked yet'
         heatmap = _nms(heatmap)
 
-    scores, inds, class_ids, ys, xs = _topk(heatmap, K=K)
+    scores, inds, class_ids, ys, xs = _top_k(heatmap, K=K)
+
     center = _transpose_and_gather_feat(center, inds).view(batch_size, K, 2)
-    rot_sin = _transpose_and_gather_feat(rot_sin, inds).view(batch_size, K, 1)
-    rot_cos = _transpose_and_gather_feat(rot_cos, inds).view(batch_size, K, 1)
     center_z = _transpose_and_gather_feat(center_z, inds).view(batch_size, K, 1)
     dim = _transpose_and_gather_feat(dim, inds).view(batch_size, K, 3)
+    rot_sin = _transpose_and_gather_feat(rot_sin, inds).view(batch_size, K, 1)
+    rot_cos = _transpose_and_gather_feat(rot_cos, inds).view(batch_size, K, 1)
 
     angle = torch.atan2(rot_sin, rot_cos)
     xs = xs.view(batch_size, K, 1) + center[:, :, 0:1]

@@ -80,12 +80,9 @@ if __name__ == "__main__":
     )
 
     import numpy as np
-    from tools.visualize import plot_3d_cloud_points
     with open('./temp/points_velodyne_000008.npy', 'rb') as f1:
         points_sample_000008 = np.load(f1)
         points_sample_000008 = points_sample_000008[np.where(points_sample_000008[:, 0] > 0)]
-
-    # plot_3d_cloud_points(points=points_sample_000008)
 
     voxels, indices, num_per_voxel, voxel_grids = voxel_generator.generate(points=points_sample_000008)
     print("voxels.shape = {}".format(voxels.shape))
