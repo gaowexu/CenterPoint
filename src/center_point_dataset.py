@@ -65,8 +65,10 @@ class CenterPointDataset(Dataset):
         indices_list = list()
         sample_indices_list = list()
         nums_per_voxel_list = list()
+
         for index, sample in enumerate(batch_list):
             voxels, indices, num_per_voxel, _ = self._voxel_generator.generate(points=sample["points_cloud"])
+            print(voxels.shape, indices.shape, num_per_voxel.shape)
 
             voxels_list.append(voxels)
             indices_list.append(indices)
@@ -115,8 +117,6 @@ if __name__ == "__main__":
         print("batch_sample_indices.shape = {}".format(batch_sample_indices.shape))
 
         print("\n")
-
-        break
 
 
 
