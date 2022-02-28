@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Function
 
-from ...utils import common_utils
+import src.utils.common_utils as common_utils
 from . import roiaware_pool3d_cuda
 
 

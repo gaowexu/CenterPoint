@@ -3,9 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn.init import kaiming_normal_
-import model_nms_utils
-import centernet_utils
-import loss_utils
+from src.utils import model_nms_utils, centernet_utils, loss_utils
 
 
 class SeparateHead(nn.Module):
@@ -46,47 +44,55 @@ class SeparateHead(nn.Module):
 
 
 class CenterHead(nn.Module):
-    def __init__(self, model_cfg, input_channels, num_class, class_names, grid_size, point_cloud_range, voxel_size,
+    def __init__(self,
+                 model_cfg,
+                 input_channels,
+                 num_class,
+                 class_names,
+                 point_cloud_range,
+                 voxel_size,
                  predict_boxes_when_training=True):
         super().__init__()
         self.model_cfg = model_cfg
         self.num_class = num_class
-        self.grid_size = grid_size
         self.point_cloud_range = point_cloud_range
         self.voxel_size = voxel_size
-        self.feature_map_stride = self.model_cfg.TARGET_ASSIGNER_CONFIG.get('FEATURE_MAP_STRIDE', None)
+        self.feature_map_stride = self.model_cfg["TARGET_ASSIGNER_CONFIG"].get('FEATURE_MAP_STRIDE', None)
 
         self.class_names = class_names
         self.class_names_each_head = []
         self.class_id_mapping_each_head = []
 
-        for cur_class_names in self.model_cfg.CLASS_NAMES_EACH_HEAD:
+        for cur_class_names in self.model_cfg["CLASS_NAMES_EACH_HEAD"]:
             self.class_names_each_head.append([x for x in cur_class_names if x in class_names])
             cur_class_id_mapping = torch.from_numpy(np.array(
                 [self.class_names.index(x) for x in cur_class_names if x in class_names]
             )).cuda()
             self.class_id_mapping_each_head.append(cur_class_id_mapping)
 
+        print("self.class_names_each_head = {}".format(self.class_names_each_head))
+        print("self.class_id_mapping_each_head = {}".format(self.class_id_mapping_each_head))
+
         total_classes = sum([len(x) for x in self.class_names_each_head])
         assert total_classes == len(self.class_names), f'class_names_each_head={self.class_names_each_head}'
 
         self.shared_conv = nn.Sequential(
             nn.Conv2d(
-                input_channels, self.model_cfg.SHARED_CONV_CHANNEL, 3, stride=1, padding=1,
+                input_channels, self.model_cfg["SHARED_CONV_CHANNEL"], 3, stride=1, padding=1,
                 bias=self.model_cfg.get('USE_BIAS_BEFORE_NORM', False)
             ),
-            nn.BatchNorm2d(self.model_cfg.SHARED_CONV_CHANNEL),
+            nn.BatchNorm2d(self.model_cfg["SHARED_CONV_CHANNEL"]),
             nn.ReLU(),
         )
 
         self.heads_list = nn.ModuleList()
-        self.separate_head_cfg = self.model_cfg.SEPARATE_HEAD_CFG
+        self.separate_head_cfg = self.model_cfg["SEPARATE_HEAD_CFG"]
         for idx, cur_class_names in enumerate(self.class_names_each_head):
-            cur_head_dict = copy.deepcopy(self.separate_head_cfg.HEAD_DICT)
-            cur_head_dict['hm'] = dict(out_channels=len(cur_class_names), num_conv=self.model_cfg.NUM_HM_CONV)
+            cur_head_dict = copy.deepcopy(self.separate_head_cfg["HEAD_DICT"])
+            cur_head_dict['hm'] = dict(out_channels=len(cur_class_names), num_conv=self.model_cfg["NUM_HM_CONV"])
             self.heads_list.append(
                 SeparateHead(
-                    input_channels=self.model_cfg.SHARED_CONV_CHANNEL,
+                    input_channels=self.model_cfg["SHARED_CONV_CHANNEL"],
                     sep_head_dict=cur_head_dict,
                     init_bias=-2.19,
                     use_bias=self.model_cfg.get('USE_BIAS_BEFORE_NORM', False)
@@ -331,7 +337,8 @@ class CenterHead(nn.Module):
 
         if self.training:
             target_dict = self.assign_targets(
-                data_dict['gt_boxes'], feature_map_size=spatial_features_2d.size()[2:],
+                data_dict['gt_boxes'],
+                feature_map_size=spatial_features_2d.size()[2:],
                 feature_map_stride=data_dict.get('spatial_features_2d_strides', None)
             )
             self.forward_ret_dict['target_dicts'] = target_dict
@@ -353,3 +360,41 @@ class CenterHead(nn.Module):
                 data_dict['final_box_dicts'] = pred_dicts
 
         return data_dict
+
+
+if __name__ == "__main__":
+    bbox_head = CenterHead(
+        model_cfg={
+            "CLASS_NAMES_EACH_HEAD": [
+                ['Vehicle', 'Pedestrian', 'Cyclist']
+            ],
+
+            "SHARED_CONV_CHANNEL": 64,
+            "USE_BIAS_BEFORE_NORM": True,
+            "NUM_HM_CONV": 2,
+            "SEPARATE_HEAD_CFG": {
+                "HEAD_ORDER": ['center', 'center_z', 'dim', 'rot'],
+                "HEAD_DICT": {
+                    'center': {'out_channels': 2, 'num_conv': 2},
+                    'center_z': {'out_channels': 1, 'num_conv': 2},
+                    'dim': {'out_channels': 3, 'num_conv': 2},
+                    'rot': {'out_channels': 2, 'num_conv': 2},
+                },
+            },
+            "TARGET_ASSIGNER_CONFIG": {
+                "FEATURE_MAP_STRIDE": 8,
+                "NUM_MAX_OBJS": 500,
+                "GAUSSIAN_OVERLAP": 0.1,
+                "MIN_RADIUS": 2,
+            }
+
+        },
+        input_channels=384,
+        num_class=3,
+        class_names=['Vehicle', 'Pedestrian', 'Cyclist'],
+        point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1],
+        voxel_size=[0.16, 0.16, 4.0],
+    )
+
+    print(bbox_head)
+
