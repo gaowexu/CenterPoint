@@ -3,7 +3,7 @@ from torch import nn
 from point_pillar_net import PointPillarFeatureNet
 from point_pillars_scatter import PointPillarScatter
 from point_pillars_backbone import PointPillarBackbone
-from center_point_head import CenterHead
+from head_backup import CenterHead
 
 
 class CenterPoint(nn.Module):

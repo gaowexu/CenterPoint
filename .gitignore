@@ -3,4 +3,4 @@ dataset
 src/ops/iou3d_nms/__pycache__/
 src/ops/roiaware_pool3d/__pycache__/
 src/utils/__pycache__/
-src/__pychache__/
+src/__pycache__/*
