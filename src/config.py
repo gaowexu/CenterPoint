@@ -17,6 +17,14 @@ CenterPointConfig = {
     "train_config": {
         "max_epochs": 10,
 
+    },
+
+    "optimization": {
+        "optimizer": "adam",
+        "lr": 0.003,
+        "weight_decay": 0.01,
+        "momentum": 0.9,
+
     }
 
 

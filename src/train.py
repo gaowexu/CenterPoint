@@ -8,7 +8,8 @@ from center_point import CenterPoint
 def train_one_epoch(dataloader, model, loss_fn, optimizer, device):
     samples_amount = len(dataloader.dataset)
     model.train()
-    for batch_idx, (input_image_batch, input_gt_batch) in enumerate(dataloader):
+    for batch_index, (batch_voxels, batch_indices, batch_nums_per_voxel,
+                      batch_sample_indices, batch_gt_3d_boxes_list) in enumerate(dataloader):
         input_image_batch = input_image_batch.to(device)
         input_gt_batch = input_gt_batch.to(device)
 
@@ -21,29 +22,9 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device):
         loss.backward()
         optimizer.step()
 
-        if batch_idx % 10 == 0:
-            loss, current = loss.item(), batch_idx * len(input_image_batch)
+        if batch_index % 10 == 0:
+            loss, current = loss.item(), batch_index * len(input_image_batch)
             print(f"loss: {loss:>7f}  [{current:>5d}/{samples_amount:>5d}]")
-
-
-def evaluate(dataloader, model, loss_fn, device):
-    samples_amount = len(dataloader.dataset)
-    num_batches = len(dataloader)
-    model.eval()
-    test_loss, correct = 0.0, 0.0
-    with torch.no_grad():
-        for input_image_batch, input_gt_batch in dataloader:
-            input_image_batch = input_image_batch.to(device)
-            input_gt_batch = input_gt_batch.to(device)
-
-            logits, probs = model(input_image_batch)
-            test_loss += loss_fn(logits, input_gt_batch).item()
-
-            correct += (probs.argmax(1) == input_gt_batch).type(torch.float).sum().item()
-
-    test_loss /= num_batches
-    correct /= samples_amount
-    print(f"Test Performance: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
 
 def main():
@@ -68,7 +49,11 @@ def main():
     center_point_model = CenterPoint().to(device)
 
     # Step 3: Start training
-    adam_optimizer = torch.optim.Adam(custom_model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(
+        params=center_point_model.parameters(),
+        lr=CenterPointConfig["optimization"]["lr"],
+        weight_decay=CenterPointConfig["optimization"]["weight_decay"]
+    )
     loss_handler = torch.nn.CrossEntropyLoss()
 
     max_epochs = CenterPointConfig["train_config"]["max_epochs"]
@@ -79,15 +64,15 @@ def main():
             dataloader=train_dataloader,
             model=center_point_model,
             loss_fn=loss_handler,
-            optimizer=adam_optimizer,
+            optimizer=optimizer,
             device=device)
 
-        # 在验证集上评估性能
-        evaluate(
-            dataloader=val_dataloader,
-            model=center_point_model,
-            loss_fn=loss_handler,
-            device=device)
+        # # 在验证集上评估性能
+        # evaluate(
+        #     dataloader=val_dataloader,
+        #     model=center_point_model,
+        #     loss_fn=loss_handler,
+        #     device=device)
 
 
 if __name__ == "__main__":

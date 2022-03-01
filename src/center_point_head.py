@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.nn.init import kaiming_normal_
 import utils.centernet_utils as centernet_utils
 import utils.model_nms_utils as model_nms_utils
+from utils.loss_utils import FocalLossCenterNet, RegLossCenterNet
 
 
 class SeparateHead(nn.Module):
@@ -161,8 +162,168 @@ class CenterBBoxHead(nn.Module):
                 )
             )
 
+        # 构建损失函数
+        self.build_losses()
+
         # 保存每一次 forward 结果
         self._forward_ret_dict = dict()
+
+    def build_losses(self):
+        self.add_module("hm_loss_func", FocalLossCenterNet())
+        self.add_module("reg_loss_func", RegLossCenterNet())
+
+    @staticmethod
+    def sigmoid(x):
+        eps = 1e-4
+        return torch.clamp(x.sigmoid(), min=eps, max=1.0 - eps)
+
+    def get_loss(self):
+        predictions = self._forward_ret_dict["predictions"]
+        targets = self._forward_ret_dict["targets"]
+
+        loss = 0.0
+        for index, predicted_dict in enumerate(predictions):
+            predicted_dict["hm"] = self.sigmoid(predicted_dict['hm'])
+
+            predicted_heatmap = predicted_dict["predicted_heatmap"]
+            predicted_boxes = torch.cat([
+                predicted_dict[head_name] for head_name in self._separate_head_cfg["head_order"]], dim=1)
+
+
+            target_heatmap = targets["target_heatmap"][index]
+            target_boxes = targets["target_boxes"][index]
+
+            hm_loss = self.hm_loss_func(predicted_heatmap, target_heatmap)
+            reg_loss = self.reg_loss_func()
+
+            loss += (hm_loss + loc_loss)
+
+        return loss,
+
+    @staticmethod
+    def assign_target_of_single_head(
+            point_cloud_range,
+            voxel_size,
+            num_classes,
+            gt_boxes,
+            feature_map_size,
+            feature_map_stride,
+            num_max_objs=500,
+            gaussian_overlap=0.1,
+            min_radius=2):
+        """
+
+        :param point_cloud_range: 点云的检测范围，[x_min, y_min, z_min, x_max, y_max, z_max]
+        :param voxel_size: 体素的分割大小，[x_size, y_size, z_size]， 默认为 [0.16, 0.16, 4.0]
+        :param num_classes: 某一个检测头负责检测的目标类别数目，如一个检测头负责检测 pedestrian 和 car 两个类别，则该值为 2
+        :param gt_boxes: 某一个检测头负责检测的目标真值3D矩形狂，形状为(N, 8)
+        :param feature_map_size: Point Pillar中体素化后二维 backbone 提取的特征维度，如KITTI数据集中大小为 (216, 248)
+        :param feature_map_stride: 特征图相比于原始输入的时候降采样的比例，如KITTI数据集中为2
+        :param num_max_objs: 默认单个检测头中最多的目标框数目
+        :param gaussian_overlap:
+        :param min_radius:
+        :return:
+        """
+        heatmap = gt_boxes.new_zeros(num_classes, feature_map_size[1], feature_map_size[0])
+        ret_boxes = gt_boxes.new_zeros((num_max_objs, gt_boxes.shape[-1]))
+        inds = gt_boxes.new_zeros(num_max_objs).long()
+        mask = gt_boxes.new_zeros(num_max_objs).long()
+
+        x, y, z = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2]
+        coord_x = (x - point_cloud_range[0]) / voxel_size[0] / feature_map_stride
+        coord_y = (y - point_cloud_range[1]) / voxel_size[1] / feature_map_stride
+        coord_x = torch.clamp(coord_x, min=0, max=feature_map_size[0] - 0.5)  # bugfixed: 1e-6 does not work for center.int()
+        coord_y = torch.clamp(coord_y, min=0, max=feature_map_size[1] - 0.5)  #
+        center = torch.cat((coord_x[:, None], coord_y[:, None]), dim=-1)
+        center_int = center.int()
+        center_int_float = center_int.float()
+
+        dx, dy, dz = gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[:, 5]
+        dx = dx / voxel_size[0] / feature_map_stride
+        dy = dy / voxel_size[1] / feature_map_stride
+
+        radius = centernet_utils.gaussian_radius(dx, dy, min_overlap=gaussian_overlap)
+        radius = torch.clamp_min(radius.int(), min=min_radius)
+
+        for k in range(min(num_max_objs, gt_boxes.shape[0])):
+            if dx[k] <= 0 or dy[k] <= 0:
+                continue
+
+            if not (0 <= center_int[k][0] <= feature_map_size[0] and 0 <= center_int[k][1] <= feature_map_size[1]):
+                continue
+
+            cur_class_id = (gt_boxes[k, -1] - 1).long()
+            centernet_utils.draw_gaussian_to_heatmap(heatmap[cur_class_id], center[k], radius[k].item())
+
+            inds[k] = center_int[k, 1] * feature_map_size[0] + center_int[k, 0]
+            mask[k] = 1
+
+            ret_boxes[k, 0:2] = center[k] - center_int_float[k].float()
+            ret_boxes[k, 2] = z[k]
+            ret_boxes[k, 3:6] = gt_boxes[k, 3:6].log()
+            ret_boxes[k, 6] = torch.cos(gt_boxes[k, 6])
+            ret_boxes[k, 7] = torch.sin(gt_boxes[k, 6])
+            if gt_boxes.shape[1] > 8:
+                ret_boxes[k, 8:] = gt_boxes[k, 7:-1]
+
+        return heatmap, ret_boxes, inds, mask
+
+    def assign_targets(self, gt_boxes, feature_map_size=None):
+
+        ret_dict = {
+            "heatmaps": list(),
+            "target_boxes": list(),
+            "inds": list(),
+            "masks": list(),
+            "heatmap_masks": list()
+        }
+
+        all_names = np.array(["bg", *self._class_names])
+        batch_size = len(gt_boxes)
+
+        for index, single_head_class_names in enumerate(self._class_names_each_head):
+            target_hm_list, target_boxes_list, target_inds_list, target_masks_list = list(), list(), list(), list()
+
+            for batch_index in range(batch_size):
+                gt_boxes_in_curr_sample = gt_boxes[batch_index]
+                gt_class_names_in_curr_sample = all_names[gt_boxes_in_curr_sample[:, 0].cpu().long().numpy()]
+
+                gt_boxes_single_head = list()
+
+                for box_index, name in enumerate(gt_class_names_in_curr_sample):
+                    if name not in single_head_class_names:
+                        continue
+
+                    box = gt_boxes_in_curr_sample[box_index]
+                    box[0] = single_head_class_names.index(name) + 1
+                    gt_boxes_single_head.append(box[None, :])
+
+                if len(gt_boxes_single_head) == 0:
+                    gt_boxes_single_head = gt_boxes_in_curr_sample[:0, :]
+                else:
+                    gt_boxes_single_head = torch.cat(gt_boxes_single_head, dim=0)
+
+                heatmap, boxes, inds, mask = self.assign_target_of_single_head(
+                    num_classes=len(single_head_class_names),
+                    gt_boxes=gt_boxes_single_head.cpu(),
+                    feature_map_size=feature_map_size,
+                    feature_map_stride=target_assigner_cfg.FEATURE_MAP_STRIDE,
+                    num_max_objs=target_assigner_cfg.NUM_MAX_OBJS,
+                    gaussian_overlap=target_assigner_cfg.GAUSSIAN_OVERLAP,
+                    min_radius=target_assigner_cfg.MIN_RADIUS,
+                )
+
+                target_hm_list.append(heatmap.to(gt_boxes_single_head.device))
+                target_boxes_list.append(boxes.to(gt_boxes_single_head.device))
+                target_inds_list.append(inds.to(gt_boxes_single_head.device))
+                target_masks_list.append(mask.to(gt_boxes_single_head.device))
+
+            ret_dict['heatmaps'].append(torch.stack(target_hm_list, dim=0))
+            ret_dict['target_boxes'].append(torch.stack(target_boxes_list, dim=0))
+            ret_dict['inds'].append(torch.stack(target_inds_list, dim=0))
+            ret_dict['masks'].append(torch.stack(target_masks_list, dim=0))
+
+        return ret_dict
 
     def generate_predicted_boxes(self, batch_size, predictions_list):
         """
@@ -280,14 +441,14 @@ class CenterBBoxHead(nn.Module):
                 }
             )
 
-        # 生成预测框
-        predicted_boxes = self.generate_predicted_boxes(batch_size=batch_size, predictions_list=predictions_list)
-
-        rois, roi_scores, roi_labels = self.reorder_rois_for_refining(
-            batch_size=batch_size,
-            predicted_boxes=predicted_boxes)
-
-        return rois, roi_scores, roi_labels
+        # # 生成预测框
+        # predicted_boxes = self.generate_predicted_boxes(batch_size=batch_size, predictions_list=predictions_list)
+        #
+        # rois, roi_scores, roi_labels = self.reorder_rois_for_refining(
+        #     batch_size=batch_size,
+        #     predicted_boxes=predicted_boxes)
+        #
+        # return rois, roi_scores, roi_labels
 
 
 if __name__ == "__main__":
@@ -332,7 +493,7 @@ if __name__ == "__main__":
     )
 
     x = torch.rand((4, 384, 216, 248))
-
+    print(bbox_head)
     bbox_head(x)
 
 

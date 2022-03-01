@@ -82,7 +82,8 @@ class CenterPointDataset(Dataset):
             if category not in self._class_names:
                 continue
 
-            category_id = self._class_names.index(category)
+            # 这里做了+1处理，将0留给了背景类
+            category_id = self._class_names.index(category) + 1
             x, y, z, length, width, height, orientation = \
                 label["bbox"][0], label["bbox"][1], label["bbox"][2], \
                 label["bbox"][3], label["bbox"][4], label["bbox"][5], \
