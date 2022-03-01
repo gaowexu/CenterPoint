@@ -36,6 +36,7 @@ def gaussian2D(shape, sigma=1):
 
 
 def draw_gaussian_to_heatmap(heatmap, center, radius, k=1, valid_mask=None):
+    # 直径
     diameter = 2 * radius + 1
     gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
 
@@ -48,8 +49,7 @@ def draw_gaussian_to_heatmap(heatmap, center, radius, k=1, valid_mask=None):
 
     masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
     masked_gaussian = torch.from_numpy(
-        gaussian[radius - top:radius + bottom, radius - left:radius + right]
-    ).to(heatmap.device).float()
+        gaussian[radius - top:radius + bottom, radius - left:radius + right]).to(heatmap.device).float()
 
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
         if valid_mask is not None:
@@ -144,7 +144,6 @@ def _top_k(center_ness_heatmap, K=500):
     # top_k_score.shape = torch.Size([4, 500])
     # top_k_ind.shape = torch.Size([4, 500])
     top_k_score, top_k_ind = torch.topk(top_k_scores.view(batch_size, -1), K)
-    print(top_k_score.shape, top_k_ind.shape)
 
     top_k_classes = (top_k_ind // K).int()
     top_k_indices = _gather_feat(top_k_indices.view(batch_size, -1, 1), top_k_ind).view(batch_size, K)

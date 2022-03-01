@@ -46,8 +46,6 @@ def assign_target_of_single_head(
     # 获取三维物体在feature map (PointPillar的2D backbone输出)上的长度(dx)和宽度(dy)
     dx = dx / voxel_size[0] / feature_map_stride
     dy = dy / voxel_size[1] / feature_map_stride
-    print(dx)
-    print(dy)
 
     radius = centernet_utils.gaussian_radius(dx, dy, min_overlap=gaussian_overlap)
     radius = torch.clamp_min(radius.int(), min=min_radius)
