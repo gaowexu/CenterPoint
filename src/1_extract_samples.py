@@ -278,10 +278,7 @@ class SamplesExtractor(object):
             lidar_npy_full_path = os.path.join(self._lidar_dir, "{}.npy".format(name_without_suffix))
 
             np.save(lidar_npy_full_path, pc_data)
-            json.dump({
-                "sample": name_without_suffix,
-                "ground_truth": gts_in_velodyne_coordinate_system
-            }, open(gt_json_full_path, 'w'), indent=True)
+            json.dump(gts_in_velodyne_coordinate_system, open(gt_json_full_path, 'w'), indent=True)
 
             print("Processing sample {} ({}/{})...".format(name_without_suffix, index+1, len(lidar_samples)))
 
