@@ -220,7 +220,6 @@ def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
     print("rot_sin.shape = {}".format(rot_sin.shape))
     print("rot_cos.shape = {}".format(rot_cos.shape))
 
-
     center = _transpose_and_gather_feat(center, inds).view(batch_size, K, 2)
     center_z = _transpose_and_gather_feat(center_z, inds).view(batch_size, K, 1)
     dim = _transpose_and_gather_feat(dim, inds).view(batch_size, K, 3)
