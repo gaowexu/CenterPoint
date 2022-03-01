@@ -1,5 +1,5 @@
 import torch
-import utils.centernet_utils as centernet_utils
+import src.utils.centernet_utils as centernet_utils
 
 
 def assign_target_of_single_head(
@@ -25,8 +25,8 @@ def assign_target_of_single_head(
     :param min_radius:
     :return:
     """
-    # heatmap, ret_boxes, inds, masks的初始化，形状分别为 (num_classes, 248, 216), (500, 8), (500,), (500,)
-    heatmap = gt_boxes.new_zeros(num_classes, feature_map_size[1], feature_map_size[0])
+    # heatmap, ret_boxes, inds, masks的初始化，形状分别为 (num_classes, 216, 248), (500, 8), (500,), (500,)
+    heatmap = gt_boxes.new_zeros(num_classes, feature_map_size[0], feature_map_size[1])
     ret_boxes = gt_boxes.new_zeros((num_max_objs, gt_boxes.shape[-1]))
     inds = gt_boxes.new_zeros(num_max_objs).long()
     mask = gt_boxes.new_zeros(num_max_objs).long()
@@ -63,9 +63,11 @@ def assign_target_of_single_head(
         # 时加上了1 (加1是因为把0留给了背景类)
         cls_id_in_curr_separate_head = (gt_boxes[k, -1] - 1).long()
 
+        # 根据给定的中心点(center)以及高斯半径(radius)绘制 center-ness score 的热力图，该图会作为训练网络时的拟合目标值
         centernet_utils.draw_gaussian_to_heatmap(heatmap[cls_id_in_curr_separate_head], center[k], radius[k].item())
 
-        inds[k] = center_int[k, 1] * feature_map_size[0] + center_int[k, 0]
+        # 参考docs/scatter.png中的索引定义
+        inds[k] = center_int[k, 0] * feature_map_size[1] + center_int[k, 1]
         mask[k] = 1
 
         ret_boxes[k, 0:2] = center[k] - center_int_float[k].float()
@@ -80,8 +82,8 @@ def assign_target_of_single_head(
 if __name__ == "__main__":
     import numpy as np
     gt_boxes = torch.from_numpy(np.array([
-        [50.0, 0, 1.0, 5.3, 1.7, 1.5, 0.0, 1],
-        [10, 15, 1.0, 0.4, 0.3, 1.9, 0.72, 2],
+        [62, 36.0, 1.0, 5.3, 1.7, 1.5, 0.0, 1],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
+        [30, 15, 1.0, 0.4, 0.3, 1.9, 0.72, 2],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
     ]))
 
     heatmap, ret_boxes, inds, mask = assign_target_of_single_head(
@@ -97,7 +99,6 @@ if __name__ == "__main__":
     print("ret_boxes.shape = {}".format(ret_boxes.shape))
     print("inds.shape = {}".format(inds.shape))
     print("mask.shape = {}".format(mask.shape))
-
 
     import matplotlib.pyplot as plt
 

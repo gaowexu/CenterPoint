@@ -237,8 +237,8 @@ class CenterBBoxHead(nn.Module):
 
         # gt_boxes的形状为(N, 8), 8代表着 x, y, z, dx, dy, dz, orientation, category_id_in_separate_single_head
         # 其中 dx, dy, dz 也可表示为物体的 length, width, height
-        x, y, z, dx, dy, dz = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2], gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[
-                                                                                                              :, 5]
+        x, y, z = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2]
+        dx, dy, dz = gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[:, 5]
 
         coord_x = (x - point_cloud_range[0]) / voxel_size[0] / feature_map_stride
         coord_y = (y - point_cloud_range[1]) / voxel_size[1] / feature_map_stride
@@ -355,6 +355,7 @@ class CenterBBoxHead(nn.Module):
         } for _ in range(batch_size)]
 
         for separate_head_index, predictions in enumerate(predictions_list):
+            # 获取预测的结果
             batch_hm = predictions['hm'].sigmoid()
             batch_center = predictions['center']
             batch_center_z = predictions['center_z']
@@ -363,7 +364,9 @@ class CenterBBoxHead(nn.Module):
             batch_rot_sin = predictions['rot'][:, 1].unsqueeze(dim=1)
             batch_vel = None
 
-            final_pred_dicts = centernet_utils.decode_bbox_from_heatmap(
+            # 根据预测结果进行decode，得到 boxes, scores, labels信息, decoded_predictions是一个长度为batch_size的数组，
+            # 其中每一个元素为一个字典，包含 pred_boxes, pred_scores, pred_labels 三个字段
+            decoded_predictions = centernet_utils.decode_bbox_from_heatmap(
                 heatmap=batch_hm,
                 rot_cos=batch_rot_cos,
                 rot_sin=batch_rot_sin,
@@ -380,12 +383,16 @@ class CenterBBoxHead(nn.Module):
                 post_center_limit_range=torch.tensor(self._post_processing_config["post_center_limit_range"]).cuda().float()
             )
 
-            for k, final_dict in enumerate(final_pred_dicts):
-                final_dict['pred_labels'] = self._class_id_mapping_each_head[separate_head_index][final_dict['pred_labels'].long()]
+            for batch_index, decoded_predicted_dict in enumerate(decoded_predictions):
+                # 将 separate head 中预测得到的label 转化为全局物体类别的id
+                cls_ids_in_separate_head = decoded_predicted_dict['pred_labels'].long()
+                decoded_predicted_dict['pred_labels'] = \
+                    self._class_id_mapping_each_head[separate_head_index][cls_ids_in_separate_head]
+
                 if self._post_processing_config["nms_type"] != 'circle_nms':
                     selected, selected_scores = model_nms_utils.class_agnostic_nms(
-                        box_scores=final_dict['pred_scores'],
-                        box_preds=final_dict['pred_boxes'],
+                        box_scores=decoded_predicted_dict['pred_scores'],
+                        box_preds=decoded_predicted_dict['pred_boxes'],
                         nms_type=self._post_processing_config["nms_type"],
                         nms_thresh=self._post_processing_config["nms_thresh"],
                         nms_pre_max_size=self._post_processing_config["nms_pre_max_size"],
@@ -393,18 +400,19 @@ class CenterBBoxHead(nn.Module):
                         score_thresh=None
                     )
 
-                    final_dict['pred_boxes'] = final_dict['pred_boxes'][selected]
-                    final_dict['pred_scores'] = selected_scores
-                    final_dict['pred_labels'] = final_dict['pred_labels'][selected]
+                    decoded_predicted_dict['pred_boxes'] = decoded_predicted_dict['pred_boxes'][selected]
+                    decoded_predicted_dict['pred_scores'] = selected_scores
+                    decoded_predicted_dict['pred_labels'] = decoded_predicted_dict['pred_labels'][selected]
 
-                ret_dict[k]['pred_boxes'].append(final_dict['pred_boxes'])
-                ret_dict[k]['pred_scores'].append(final_dict['pred_scores'])
-                ret_dict[k]['pred_labels'].append(final_dict['pred_labels'])
+                ret_dict[batch_index]['pred_boxes'].append(decoded_predicted_dict['pred_boxes'])
+                ret_dict[batch_index]['pred_scores'].append(decoded_predicted_dict['pred_scores'])
+                ret_dict[batch_index]['pred_labels'].append(decoded_predicted_dict['pred_labels'])
 
-        for k in range(batch_size):
-            ret_dict[k]['pred_boxes'] = torch.cat(ret_dict[k]['pred_boxes'], dim=0)
-            ret_dict[k]['pred_scores'] = torch.cat(ret_dict[k]['pred_scores'], dim=0)
-            ret_dict[k]['pred_labels'] = torch.cat(ret_dict[k]['pred_labels'], dim=0) + 1
+        # 将多个 separate head 的预测结果进行拼接输出
+        for batch_index in range(batch_size):
+            ret_dict[batch_index]['pred_boxes'] = torch.cat(ret_dict[batch_index]['pred_boxes'], dim=0)
+            ret_dict[batch_index]['pred_scores'] = torch.cat(ret_dict[batch_index]['pred_scores'], dim=0)
+            ret_dict[batch_index]['pred_labels'] = torch.cat(ret_dict[batch_index]['pred_labels'], dim=0)
 
         return ret_dict
 

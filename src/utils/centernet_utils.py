@@ -36,18 +36,34 @@ def gaussian2D(shape, sigma=1):
 
 
 def draw_gaussian_to_heatmap(heatmap, center, radius, k=1, valid_mask=None):
+    """
+    根据给定的中心点(center)以及高斯半径(radius)绘制 center-ness score 的热力图，该图会作为训练网络时的
+    拟合目标值
+
+    :param heatmap: torch.tensor, 形状为 torch.Size([216, 248])
+    :param center: torch.tensor, (x, y)
+    :param radius: float
+    :param k:
+    :param valid_mask:
+    :return:
+    """
     # 直径
     diameter = 2 * radius + 1
     gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
 
     x, y = int(center[0]), int(center[1])
 
+    # height 指的是 x 方向，即车辆前进方向 （参考KITTI Lidar 坐标系）
+    # width 指的是 y 方向 （参考KITTI Lidar 坐标系）
     height, width = heatmap.shape[0:2]
 
-    left, right = min(x, radius), min(width - x, radius + 1)
-    top, bottom = min(y, radius), min(height - y, radius + 1)
+    left = min(y, radius)
+    right = min(width - y, radius + 1)
+    top = min(x, radius)
+    bottom = min(height - x, radius + 1)
 
-    masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
+    masked_heatmap = heatmap[x-top:x+bottom, y-left: y+right]
+
     masked_gaussian = torch.from_numpy(
         gaussian[radius - top:radius + bottom, radius - left:radius + right]).to(heatmap.device).float()
 
@@ -122,52 +138,72 @@ def _transpose_and_gather_feat(feat, ind):
     return feat
 
 
-def _top_k(center_ness_heatmap, K=500):
+def _top_k(scores, K=40):
     """
 
-    :param center_ness_heatmap: torch.tensor, 形状为(batch_size, num_class, nx/2, ny/2)
+    :param scores: torch.tensor, 形状为 (batch_size, num_classes, 216, 248)
     :param K:
     :return:
     """
-    # center_ness_heatmap的形状为 torch.Size([4, 2, 216, 248])
-    batch_size, num_class, height, width = center_ness_heatmap.size()
+    batch_size, num_class, height, width = scores.size()
 
-    # top_k_scores.shape = torch.Size([4, 2, 500])
-    # top_k_indices.shape = torch.Size([4, 2, 500])
-    top_k_scores, top_k_indices = torch.topk(center_ness_heatmap.flatten(start_dim=2, end_dim=3), K)
+    # 展平最后两个维度，scores_flatten.shape = torch.Size([1, 2, 53568]), 其中 55368 = 216*248
+    scores_flatten = scores.flatten(2, 3)
 
-    top_k_indices = top_k_indices % (height * width)
+    # 首先针对每一个类别的 score map, 挑选前 K 个score保存，并保存其索引信息
+    # topk_scores.shape = torch.Size([batch_size, num_classes, K])
+    # topk_inds.shape = torch.Size([batch_size, num_classes, K])
+    topk_scores, topk_inds = torch.topk(scores_flatten, K)
 
-    top_k_ys = (top_k_indices // width).float()
-    top_k_xs = (top_k_indices % width).int().float()
+    # 根据全局索引得到 x, y 方向的索引
+    # topk_xs.shape = torch.Size([batch_size, num_classes, K])
+    # topk_ys.shape = torch.Size([batch_size, num_classes, K])
+    topk_inds = topk_inds % (height * width)
+    topk_xs = torch.div(topk_inds, width, rounding_mode='floor').float()
+    topk_ys = (topk_inds % width).int().float()
 
-    # top_k_score.shape = torch.Size([4, 500])
-    # top_k_ind.shape = torch.Size([4, 500])
-    top_k_score, top_k_ind = torch.topk(top_k_scores.view(batch_size, -1), K)
+    # 将topk_scores展平，展平后形状为 torch.Size([batch_size, num_classes * K])
+    topk_scores_flatten = topk_scores.view(batch_size, -1)
 
-    top_k_classes = (top_k_ind // K).int()
-    top_k_indices = _gather_feat(top_k_indices.view(batch_size, -1, 1), top_k_ind).view(batch_size, K)
-    top_k_ys = _gather_feat(top_k_ys.view(batch_size, -1, 1), top_k_ind).view(batch_size, K)
-    top_k_xs = _gather_feat(top_k_xs.view(batch_size, -1, 1), top_k_ind).view(batch_size, K)
+    # 选出所有类别中 top K 的 score, 并将其索引保存下来
+    topk_score, topk_ind = torch.topk(topk_scores_flatten, K)
 
-    return top_k_score, top_k_indices, top_k_classes, top_k_ys, top_k_xs
+    # 计算得到所属的类别id, topk_classes输出形状为 (batch_size, K)
+    topk_classes = torch.div(topk_ind, K, rounding_mode='floor').int()
+
+    # 计算得到 top K的 scores对应的全局索引， 形状为 (batch_size, K)
+    topk_inds = _gather_feat(topk_inds.view(batch_size, -1, 1), topk_ind).view(batch_size, K)
+
+    # 计算得到 top K的 scores对应的 x,y 索引， 形状为 (batch_size, K)
+    topk_xs = _gather_feat(topk_xs.view(batch_size, -1, 1), topk_ind).view(batch_size, K)
+    topk_ys = _gather_feat(topk_ys.view(batch_size, -1, 1), topk_ind).view(batch_size, K)
+
+    return topk_score, topk_inds, topk_classes, topk_xs, topk_ys
 
 
-def decode_bbox_from_heatmap(
-        heatmap,
-        rot_cos,
-        rot_sin,
-        center,
-        center_z,
-        dim,
-        point_cloud_range=None,
-        voxel_size=None,
-        feature_map_stride=None,
-        vel=None,
-        K=100,
-        circle_nms=False,
-        score_thresh=None,
-        post_center_limit_range=None):
+def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
+                             point_cloud_range=None, voxel_size=None, feature_map_stride=None,
+                             vel=None, K=100, circle_nms=False, score_thresh=None,
+                             post_center_limit_range=None):
+    """
+    从预测得到的dense feature map中解码出 3D bounding boxes信息
+
+    :param heatmap:
+    :param rot_cos:
+    :param rot_sin:
+    :param center:
+    :param center_z:
+    :param dim:
+    :param point_cloud_range:
+    :param voxel_size:
+    :param feature_map_stride:
+    :param vel:
+    :param K:
+    :param circle_nms:
+    :param score_thresh:
+    :param post_center_limit_range:
+    :return:
+    """
 
     batch_size, num_class, _, _ = heatmap.size()
 
@@ -176,7 +212,14 @@ def decode_bbox_from_heatmap(
         assert False, 'not checked yet'
         heatmap = _nms(heatmap)
 
-    scores, inds, class_ids, ys, xs = _top_k(heatmap, K=K)
+    scores, inds, class_ids, xs, ys = _top_k(heatmap, K=K)
+
+    print("center.shape = {}".format(center.shape))
+    print("center_z.shape = {}".format(center_z.shape))
+    print("dim.shape = {}".format(dim.shape))
+    print("rot_sin.shape = {}".format(rot_sin.shape))
+    print("rot_cos.shape = {}".format(rot_cos.shape))
+
 
     center = _transpose_and_gather_feat(center, inds).view(batch_size, K, 2)
     center_z = _transpose_and_gather_feat(center_z, inds).view(batch_size, K, 1)

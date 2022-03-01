@@ -89,8 +89,8 @@ class CenterPointDataset(Dataset):
                 label["bbox"][3], label["bbox"][4], label["bbox"][5], \
                 label["bbox"][6]
 
-            # 类别信息放在索引为0的位置
-            gt_boxes.append([category_id, x, y, z, length, width, height, orientation])
+            # 类别信息放在box的最后
+            gt_boxes.append([x, y, z, length, width, height, orientation, category_id])
 
         gt_boxes = np.array(gt_boxes)
         return gt_boxes
