@@ -348,20 +348,19 @@ class CenterBBoxHead(nn.Module):
         :param predictions_list: 预测结果，是一个list，分别对应着 separate branch 的预测结果
         :return:
         """
-        post_center_limit_range = torch.tensor(self._post_processing_config["post_center_limit_range"]).cuda().float()
-
         ret_dict = [{
-            'pred_boxes': [],
-            'pred_scores': [],
-            'pred_labels': [],
+            'pred_boxes': list(),
+            'pred_scores': list(),
+            'pred_labels': list(),      # 存储的是类别id
         } for _ in range(batch_size)]
-        for idx, pred_dict in enumerate(predictions_list):
-            batch_hm = pred_dict['hm'].sigmoid()
-            batch_center = pred_dict['center']
-            batch_center_z = pred_dict['center_z']
-            batch_dim = pred_dict['dim'].exp()
-            batch_rot_cos = pred_dict['rot'][:, 0].unsqueeze(dim=1)
-            batch_rot_sin = pred_dict['rot'][:, 1].unsqueeze(dim=1)
+
+        for separate_head_index, predictions in enumerate(predictions_list):
+            batch_hm = predictions['hm'].sigmoid()
+            batch_center = predictions['center']
+            batch_center_z = predictions['center_z']
+            batch_dim = predictions['dim'].exp()
+            batch_rot_cos = predictions['rot'][:, 0].unsqueeze(dim=1)
+            batch_rot_sin = predictions['rot'][:, 1].unsqueeze(dim=1)
             batch_vel = None
 
             final_pred_dicts = centernet_utils.decode_bbox_from_heatmap(
@@ -378,11 +377,11 @@ class CenterBBoxHead(nn.Module):
                 K=self._post_processing_config["max_objs_per_sample"],
                 circle_nms=(self._post_processing_config["nms_type"] == 'circle_nms'),
                 score_thresh=self._post_processing_config["score_thresh"],
-                post_center_limit_range=post_center_limit_range
+                post_center_limit_range=torch.tensor(self._post_processing_config["post_center_limit_range"]).cuda().float()
             )
 
             for k, final_dict in enumerate(final_pred_dicts):
-                final_dict['pred_labels'] = self._class_id_mapping_each_head[idx][final_dict['pred_labels'].long()]
+                final_dict['pred_labels'] = self._class_id_mapping_each_head[separate_head_index][final_dict['pred_labels'].long()]
                 if self._post_processing_config["nms_type"] != 'circle_nms':
                     selected, selected_scores = model_nms_utils.class_agnostic_nms(
                         box_scores=final_dict['pred_scores'],
@@ -409,29 +408,33 @@ class CenterBBoxHead(nn.Module):
 
         return ret_dict
 
-    # @staticmethod
-    # def reorder_rois_for_refining(batch_size, predicted_dicts):
-    #     """
-    #
-    #     :param batch_size:
-    #     :param predicted_boxes:
-    #     :return:
-    #     """
-    #     num_max_rois = max([len(cur_dict['pred_boxes']) for cur_dict in predicted_boxes])
-    #     num_max_rois = max(1, num_max_rois)  # at least one faked rois to avoid error
-    #     pred_boxes = predicted_boxes[0]['pred_boxes']
-    #
-    #     rois = pred_boxes.new_zeros((batch_size, num_max_rois, pred_boxes.shape[-1]))
-    #     roi_scores = pred_boxes.new_zeros((batch_size, num_max_rois))
-    #     roi_labels = pred_boxes.new_zeros((batch_size, num_max_rois)).long()
-    #
-    #     for batch_index in range(batch_size):
-    #         num_boxes = len(predicted_boxes[batch_index]['pred_boxes'])
-    #
-    #         rois[batch_index, :num_boxes, :] = predicted_boxes[batch_index]['pred_boxes']
-    #         roi_scores[batch_index, :num_boxes] = predicted_boxes[batch_index]['pred_scores']
-    #         roi_labels[batch_index, :num_boxes] = predicted_boxes[batch_index]['pred_labels']
-    #     return rois, roi_scores, roi_labels
+    @staticmethod
+    def reorder_rois_for_refining(batch_size, predictions):
+        """
+        找出当前batch中样本预测得到的物体数量，再以该数量规整化所有的样本，使得对于一个batch中输出的 rois, roi_scores,
+        roi_labels的第一维度一致，即预测的物体数量一致
+
+        :param batch_size:
+        :param predictions:
+        :return:
+        """
+        # 找出当前batch中最大的预测物体数量
+        num_max_rois = max([len(cur_dict['pred_boxes']) for cur_dict in predictions])
+        num_max_rois = max(1, num_max_rois)
+
+        pred_boxes = predictions[0]['pred_boxes']
+
+        rois = pred_boxes.new_zeros((batch_size, num_max_rois, pred_boxes.shape[-1]))
+        roi_scores = pred_boxes.new_zeros((batch_size, num_max_rois))
+        roi_labels = pred_boxes.new_zeros((batch_size, num_max_rois)).long()
+
+        for batch_index in range(batch_size):
+            valid_boxes_num = len(predictions[batch_index]['pred_boxes'])
+            rois[batch_index, :valid_boxes_num, :] = predictions[batch_index]['pred_boxes']
+            roi_scores[batch_index, :valid_boxes_num] = predictions[batch_index]['pred_scores']
+            roi_labels[batch_index, :valid_boxes_num] = predictions[batch_index]['pred_labels']
+
+        return rois, roi_scores, roi_labels
 
     def forward(self, x):
         """
@@ -464,16 +467,14 @@ class CenterBBoxHead(nn.Module):
         # pred_labels 三个字段, 其中 pred_boxes的维度为(Q, 7), pred_scores的维度为 (Q,), pred_labels的维度为 (Q, ). Q为
         # 检测出来的三维目标数
         predictions = self.generate_predicted_boxes(batch_size=batch_size, predictions_list=predictions_list)
-        print(predictions[0]["pred_boxes"].shape)
-        print(predictions[0]["pred_scores"].shape)
-        print(predictions[0]["pred_labels"].shape)
-        print(predictions[0]["pred_labels"])
 
-        # rois, roi_scores, roi_labels = self.reorder_rois_for_refining(
-        #     batch_size=batch_size,
-        #     predictions=predictions)
-        #
-        # return predictions_list, predicted_dicts, rois, roi_scores, roi_labels
+        # 对于batch中预测结果进行统一预测物体的数量，输出 rois, roi_scores, roi_labels 的维度分别为 (batch_size, X, 7),
+        # (batch_size, X), (batch_size, X), 其中 X 为当前 batch 中样本预测得到的物体数量的最大值
+        rois, roi_scores, roi_labels = self.reorder_rois_for_refining(
+            batch_size=batch_size,
+            predictions=predictions)
+
+        return predictions_list, rois, roi_scores, roi_labels
 
 
 if __name__ == "__main__":
