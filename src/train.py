@@ -111,7 +111,7 @@ def main():
             device=device)
 
         # 保存模型
-        if epoch_index == 199:
+        if epoch_index % 10 == 0:
             model_save_full_path = os.path.join(
                 CenterPointConfig["MODEL_SAVE_ROOT_DIR"],
                 "center_point_epoch_{}.pth".format(epoch_index))

@@ -138,10 +138,12 @@ if __name__ == "__main__":
         point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1.0],
         max_num_points_per_voxel=100,
         max_num_voxels=16000,
-        model_full_path="../weights/center_point_epoch_199.pth"
+        model_full_path="../weights/center_point_epoch_90.pth"
     )
 
-    for sample_name in ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007"]:
+    for sample_index in range(0, 28):
+        sample_name = str(sample_index).zfill(6)
+
         # construct test lidar frames
         sample_lidar_data = np.load("../dataset/lidar_data/{}.npy".format(sample_name))
         point_clouds_frames = [sample_lidar_data]

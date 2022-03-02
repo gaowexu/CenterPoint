@@ -2,6 +2,8 @@ import os
 import numpy as np
 import json
 import open3d
+import copy
+import cv2
 
 
 class SamplesExtractor(object):
@@ -245,10 +247,77 @@ class SamplesExtractor(object):
         vis.run()
         vis.destroy_window()
 
+    @staticmethod
+    def project_velodyne_points_to_image_plane(pts3d, r0_rect, p2, tr_velodyne_to_camera):
+        """
+        project cloud points into image plane
+
+        :param pts3d: Nx4 numpy array, cloud points data
+        :return:
+        """
+        cloud_points = copy.deepcopy(pts3d)
+
+        # replaces the reflectance value by 1, and transpose the array, so points can be directly multiplied
+        # by the camera projection matrix
+        indices = cloud_points[:, 3] > 0
+        cloud_points = cloud_points[indices, :]
+        cloud_points[:, 3] = 1.0
+
+        # now cloud points is with shape (4, M), reflectances is with shape (M, )
+        cloud_points = cloud_points.transpose()
+        points_filtered = pts3d[indices, :]
+
+        # [u v z]^T = p2 * r0_rect * tr_velodyne_to_cam * [x y z 1]^T
+        pts3d_cam = np.matmul(r0_rect, np.matmul(tr_velodyne_to_camera, cloud_points))
+        pts3d_cam = np.array(pts3d_cam)
+
+        # filter out points in front of camera
+        pts3d_cam_indices = pts3d_cam[2, :] > 0
+        pts3d_cam_in_front_of_camera = pts3d_cam[:, pts3d_cam_indices]
+        pts3d_cam_in_front_of_camera = np.matrix(pts3d_cam_in_front_of_camera)
+
+        pts2d_cam = np.matmul(p2, pts3d_cam_in_front_of_camera)
+        pts2d_cam_normed = pts2d_cam
+        pts2d_cam_normed[:2] = pts2d_cam[:2] / pts2d_cam[2, :]
+        points_filtered = points_filtered[pts3d_cam_indices]
+
+        assert pts2d_cam_normed.shape[1] == pts3d_cam_in_front_of_camera.shape[1] == points_filtered.shape[0]
+        return pts2d_cam_normed, pts3d_cam_in_front_of_camera, points_filtered
+
+    def keep_fov_points(self, image_data, pc_data, r0_rect, p2, tr_velodyne_to_camera):
+        """
+        filter out cloud points which are not in FOV
+
+        :param image_data:
+        :param pc_data:
+        :param r0_rect:
+        :param p2:
+        :param tr_velodyne_to_camera:
+        :return:
+        """
+        height, width, channels = image_data.shape
+        pts2d_cam_normed, pts3d_cam_in_front_of_camera, points = self.project_velodyne_points_to_image_plane(
+            pts3d=pc_data,
+            r0_rect=r0_rect,
+            p2=p2,
+            tr_velodyne_to_camera=tr_velodyne_to_camera
+        )
+
+        # plot cloud points
+        u, v, z = pts2d_cam_normed
+        u_in = np.logical_and(u >= 0, u < width)
+        v_in = np.logical_and(v >= 0, v < height)
+        fov_indices = np.array(np.logical_and(u_in, v_in))
+        fov_indices = np.squeeze(fov_indices)
+        pts2d_cam_normed_fov = pts2d_cam_normed[:, fov_indices]
+        fov_lidar_points = points[fov_indices, :]
+        return fov_lidar_points
+
     def convert_dataset(self):
         calib_dir = os.path.join(self._kitti_dataset_root_dir, 'calib')
         label_dir = os.path.join(self._kitti_dataset_root_dir, 'label_2')
         lidar_dir = os.path.join(self._kitti_dataset_root_dir, 'velodyne')
+        image_dir = os.path.join(self._kitti_dataset_root_dir, 'image_2')
 
         lidar_samples = [name for name in os.listdir(lidar_dir) if name.endswith(".bin")]
 
@@ -257,12 +326,17 @@ class SamplesExtractor(object):
             point_cloud_data_full_path = os.path.join(lidar_dir, point_cloud_sample_name)
             calib_data_full_path = os.path.join(calib_dir, name_without_suffix + ".txt")
             label_data_full_path = os.path.join(label_dir, name_without_suffix + ".txt")
+            left_camera_image_full_path = os.path.join(image_dir, name_without_suffix + ".png")
+
+            # read image data
+            left_camera_image = cv2.imread(left_camera_image_full_path, cv2.IMREAD_COLOR)  # BGR
+            left_camera_image = cv2.cvtColor(left_camera_image, cv2.COLOR_BGR2RGB)  # RGB
 
             # read annotation (ground truth)
             gts_in_camera_coordinate_system = self.load_annotation(label_full_path=label_data_full_path)
 
             # read calibration matrix
-            _, _, tr_velodyne_to_camera = self.load_calibration_matrix(calibration_full_path=calib_data_full_path)
+            p2, r0_rect, tr_velodyne_to_camera = self.load_calibration_matrix(calibration_full_path=calib_data_full_path)
 
             # convert ground truth from camera coordinate system to velodyne coordinate system
             gts_in_velodyne_coordinate_system = self.convert_gt_from_camera_to_velodyne_coordinate_system(
@@ -272,7 +346,13 @@ class SamplesExtractor(object):
 
             # read cloud point data
             pc_data = np.fromfile(point_cloud_data_full_path, dtype='<f4').reshape(-1, 4)
-            pc_data = pc_data[np.where(pc_data[:, 0] > 0)]
+            pc_data = self.keep_fov_points(
+                image_data=left_camera_image,
+                pc_data=pc_data,
+                r0_rect=r0_rect,
+                p2=p2,
+                tr_velodyne_to_camera=tr_velodyne_to_camera
+            )
 
             gt_json_full_path = os.path.join(self._gt_dir, "{}.json".format(name_without_suffix))
             lidar_npy_full_path = os.path.join(self._lidar_dir, "{}.npy".format(name_without_suffix))
@@ -282,10 +362,10 @@ class SamplesExtractor(object):
 
             print("Processing sample {} ({}/{})...".format(name_without_suffix, index+1, len(lidar_samples)))
 
-            # gt_vis = list()
-            # for it in gts_in_velodyne_coordinate_system:
-            #     gt_vis.append(it["bbox"])
-            # self.plot_3d_box_in_velodyne_coordinate_system(pc_data=pc_data, gt_boxes=np.array(gt_vis))
+            gt_vis = list()
+            for it in gts_in_velodyne_coordinate_system:
+                gt_vis.append(it["bbox"])
+            self.plot_3d_box_in_velodyne_coordinate_system(pc_data=pc_data, gt_boxes=np.array(gt_vis))
 
 
 if __name__ == "__main__":
