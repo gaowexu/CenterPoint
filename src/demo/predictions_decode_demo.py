@@ -68,8 +68,8 @@ def assign_targets(gt_boxes, feature_map_size=None):
 
 if __name__ == "__main__":
     gt_boxes = torch.from_numpy(np.array([[
-        [62, 36.0, 1.0, 5.3, 1.7, 1.5, 0.0, 1],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
-        [30, 15, 1.0, 0.4, 0.3, 1.9, 0.72, 2],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
+        [62, 36.0, -1.1, 5.3, 1.7, 1.5, 0.45, 1],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
+        [30, 15, -1.2, 0.4, 0.3, 1.9, 0.72, 2],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
     ]]))
 
     ret_dict = assign_targets(gt_boxes=gt_boxes, feature_map_size=[216, 248])
@@ -86,34 +86,32 @@ if __name__ == "__main__":
 
     valid_indices = inds[masks > 0]
     print(valid_indices)
-    print(target_boxes[0][0])
-    print(target_boxes[0][1])
-    print(target_boxes[0][2])
+    print("target_boxes[0][0] = {}".format(target_boxes[0][0]))
+    print("target_boxes[0][1] = {}".format(target_boxes[0][1]))
+    print("target_boxes[0][2] = {}".format(target_boxes[0][2]))
 
     xs = torch.div(valid_indices, 248, rounding_mode='floor').float()
     ys = (valid_indices % 248).int().float()
     print(xs, ys)
 
-    batch_hm = heatmaps.to("cuda:0")
     batch_gt_npy = torch.zeros(size=(1, 216, 248, 8))
     batch_gt_npy[0][193][236][:] = target_boxes[0][0]
     batch_gt_npy[0][93][170][:] = target_boxes[0][1]
     batch_gt_npy = batch_gt_npy.permute(0, 3, 1, 2).contiguous()
 
+    batch_hm = heatmaps.to("cuda:0")
+    batch_center = batch_gt_npy[:, 0:2, :, :].to("cuda:0")
+    batch_center_z = torch.unsqueeze(batch_gt_npy[:, 2, :, :], dim=1).to("cuda:0")
+    batch_dim = batch_gt_npy[:, 3:6, :, :].exp().to("cuda:0")
     batch_rot_cos = torch.unsqueeze(batch_gt_npy[:, 6, :, :], dim=1).to("cuda:0")
     batch_rot_sin = torch.unsqueeze(batch_gt_npy[:, 7, :, :], dim=1).to("cuda:0")
-    batch_center = batch_gt_npy[:, 0:2, :, :].to("cuda:0")
-    batch_center_z = torch.unsqueeze(batch_gt_npy[:, 3, :, :], dim=1).to("cuda:0")
-    batch_dim = batch_gt_npy[:, 3:6, :, :].to("cuda:0")
 
-    # center.shape = torch.Size([4, 2, 216, 248])
-    # center_z.shape = torch.Size([4, 1, 216, 248])
-    # dim.shape = torch.Size([4, 3, 216, 248])
-    # rot_sin.shape = torch.Size([4, 1, 216, 248])
-    # rot_cos.shape = torch.Size([4, 1, 216, 248])
-
-
-
+    print(batch_dim[0, :, 193, 236])
+    print(batch_dim[0, :, 93, 170])
+    print(batch_rot_cos[0, :, 193, 236])
+    print(batch_rot_cos[0, :, 93, 170])
+    print(batch_rot_sin[0, :, 193, 236])
+    print(batch_rot_sin[0, :, 93, 170])
     print("================ decode ====================")
     decoded_predictions = centernet_utils.decode_bbox_from_heatmap(
         heatmap=batch_hm,
@@ -126,7 +124,7 @@ if __name__ == "__main__":
         point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1],
         voxel_size=[0.16, 0.16, 4.0],
         feature_map_stride=2,
-        K=500,
+        K=10,
         circle_nms=False,
         score_thresh=0.10,
         post_center_limit_range=torch.tensor([0, -39.68, -3, 69.12, 39.68, 1]).cuda().float()

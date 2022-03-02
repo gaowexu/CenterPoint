@@ -82,8 +82,8 @@ def assign_target_of_single_head(
 if __name__ == "__main__":
     import numpy as np
     gt_boxes = torch.from_numpy(np.array([
-        [62, 36.0, 1.0, 5.3, 1.7, 1.5, 0.0, 1],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
-        [30, 15, 1.0, 0.4, 0.3, 1.9, 0.72, 2],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
+        [62, 36.0, -1.0, 5.3, 1.7, 1.5, 0.0, 1],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
+        [30, 15, -1.0, 0.4, 0.3, 1.9, 0.72, 2],  # 最后一列为类别信息 (+1 处理过)，指的是全局类别id, 而不是separate head中的类别id
     ]))
 
     heatmap, ret_boxes, inds, mask = assign_target_of_single_head(

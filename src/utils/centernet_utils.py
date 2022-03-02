@@ -214,12 +214,6 @@ def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
 
     scores, inds, class_ids, xs, ys = _top_k(heatmap, K=K)
 
-    print("center.shape = {}".format(center.shape))
-    print("center_z.shape = {}".format(center_z.shape))
-    print("dim.shape = {}".format(dim.shape))
-    print("rot_sin.shape = {}".format(rot_sin.shape))
-    print("rot_cos.shape = {}".format(rot_cos.shape))
-
     center = _transpose_and_gather_feat(center, inds).view(batch_size, K, 2)
     center_z = _transpose_and_gather_feat(center_z, inds).view(batch_size, K, 1)
     dim = _transpose_and_gather_feat(dim, inds).view(batch_size, K, 3)
@@ -232,7 +226,6 @@ def decode_bbox_from_heatmap(heatmap, rot_cos, rot_sin, center, center_z, dim,
 
     xs = xs * feature_map_stride * voxel_size[0] + point_cloud_range[0]
     ys = ys * feature_map_stride * voxel_size[1] + point_cloud_range[1]
-
     box_part_list = [xs, ys, center_z, dim, angle]
     if vel is not None:
         vel = _transpose_and_gather_feat(vel, inds).view(batch_size, K, 2)

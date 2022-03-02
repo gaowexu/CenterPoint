@@ -8,22 +8,26 @@ from voxel_generator import VoxelGenerator
 
 
 class CenterPointDataset(Dataset):
-    def __init__(self, phase, dataset_config):
+    def __init__(self, voxel_size, class_names, point_cloud_range, phase, dataset_config):
         """
         数据集构造函数
 
+        :param voxel_size: 体素分割大小，如 [0.16, 0.16, 4.0]
+        :param class_names: 分类类别
+        :param point_cloud_range: 点云范围
         :param phase: 阶段，"train" 或者 "val"
         :param dataset_config: 数据集配置
         """
         super(CenterPointDataset, self).__init__()
         self._phase = phase
         self._dataset_config = dataset_config
-        self._dataset_root_dir = self._dataset_config["root_dir"]
-        self._voxel_size = self._dataset_config["voxel_size"]
-        self._class_names = self._dataset_config["class_names"]
-        self._point_cloud_range = self._dataset_config["point_cloud_range"]
-        self._max_num_points_per_voxel = self._dataset_config["max_num_points_per_voxel"]
-        self._max_num_voxels = self._dataset_config["max_num_voxels"][phase]
+        self._voxel_size = voxel_size
+        self._class_names = class_names
+        self._point_cloud_range = point_cloud_range
+
+        self._dataset_root_dir = self._dataset_config["ROOT_DIR"]
+        self._max_num_points_per_voxel = self._dataset_config["MAX_NUM_POINTS_PER_VOXEL"]
+        self._max_num_voxels = self._dataset_config["MAX_NUM_VOXELS"][phase]
 
         # 创建体素化转化器
         self._voxel_generator = VoxelGenerator(
@@ -128,19 +132,13 @@ class CenterPointDataset(Dataset):
 
 
 if __name__ == "__main__":
+    from config import CenterPointConfig
     train_dataset = CenterPointDataset(
+        voxel_size=CenterPointConfig["VOXEL_SIZE"],
+        class_names=CenterPointConfig["CLASS_NAMES"],
+        point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"],
         phase="train",
-        dataset_config={
-            "root_dir": "../dataset",
-            "class_names": ["Pedestrian", "Car", "Cyclist"],        # 顺序会被作为索引
-            "point_cloud_range": [0, -39.68, -3, 69.12, 39.68, 1.0],
-            "voxel_size": [0.16, 0.16, 4.0],
-            "max_num_points_per_voxel": 100,
-            "max_num_voxels": {
-                "train": 16000,
-                "val": 40000,
-            }
-        }
+        dataset_config=CenterPointConfig["DATASET_CONFIG"]
     )
 
     train_dataloader = DataLoader(
