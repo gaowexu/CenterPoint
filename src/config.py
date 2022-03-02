@@ -5,6 +5,7 @@ CenterPointConfig = {
     "CLASS_NAMES": ["Pedestrian", "Car", "Cyclist"],
     "VOXEL_SIZE": [0.16, 0.16, 4.0],
     "HEAD_INPUT_CHANNELS": 384,
+    "MODEL_SAVE_ROOT_DIR": "../weights/",
 
     "DATASET_CONFIG": {
         "ROOT_DIR": "../dataset",
@@ -44,7 +45,7 @@ CenterPointConfig = {
     "POST_PROCESSING_CONFIG": {
         "SCORE_THRESH": 0.1,
         "POST_CENTER_LIMIT_RANGE": [0, -39.68, -3, 69.12, 39.68, 1.0],
-        "MAX_OBJS_PER_SAMPLE": 500,
+        "MAX_OBJS_PER_SAMPLE": 100,
         "NMS_TYPE": "nms_gpu",
         "NMS_THRESH": 0.70,
         "NMS_PRE_MAX_SIZE": 4096,
@@ -52,7 +53,7 @@ CenterPointConfig = {
     },
 
     "TRAIN_CONFIG": {
-        "BATCH_SIZE": 2,
+        "BATCH_SIZE": 1,
         "MAX_EPOCHS": 10,
     },
 
