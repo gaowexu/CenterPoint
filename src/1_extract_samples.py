@@ -362,10 +362,10 @@ class SamplesExtractor(object):
 
             print("Processing sample {} ({}/{})...".format(name_without_suffix, index+1, len(lidar_samples)))
 
-            gt_vis = list()
-            for it in gts_in_velodyne_coordinate_system:
-                gt_vis.append(it["bbox"])
-            self.plot_3d_box_in_velodyne_coordinate_system(pc_data=pc_data, gt_boxes=np.array(gt_vis))
+            # gt_vis = list()
+            # for it in gts_in_velodyne_coordinate_system:
+            #     gt_vis.append(it["bbox"])
+            # self.plot_3d_box_in_velodyne_coordinate_system(pc_data=pc_data, gt_boxes=np.array(gt_vis))
 
 
 if __name__ == "__main__":
