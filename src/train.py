@@ -45,7 +45,7 @@ def train_one_epoch(epoch_index, dataloader, model, optimizer, device):
             loss,
             epoch_index * CenterPointConfig["TRAIN_CONFIG"]["BATCH_SIZE"] + batch_index)
 
-        print("Batch = {}/{}: loss = {}, "
+        print("Batch = {}/{}: loss = {:.4f}, "
               "hm_loss_head_0 = {:.4f}, loc_loss_head_0 = {:.4f}, "
               "hm_loss_head_1 = {:.4f}, loc_loss_head_1 = {:.4f}, "
               "rpn_loss = {:.4f}".format(
