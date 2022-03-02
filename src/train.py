@@ -1,3 +1,5 @@
+import sys
+sys.path.append("../")
 import torch
 from center_point_dataset import CenterPointDataset
 from config import CenterPointConfig

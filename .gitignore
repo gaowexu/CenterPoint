@@ -1,4 +1,5 @@
-dataset
+dataset/lidar_data/
+dataset/ground_truth/
 .idea
 src/ops/iou3d_nms/__pycache__/
 src/ops/roiaware_pool3d/__pycache__/
