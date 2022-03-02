@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import open3d
 from voxel_generator import VoxelGenerator
 
 
@@ -72,6 +73,29 @@ class Lidar3DObjectDetector(object):
         return rois, roi_scores, roi_labels
 
     @staticmethod
+    def translate_boxes_to_open3d_instance(gt_boxes):
+        """
+                 4-------- 6
+               /|         /|
+              5 -------- 3 .
+              | |        | |
+              . 7 -------- 1
+              |/         |/
+              2 -------- 0
+        """
+        center = gt_boxes[0:3]
+        lwh = gt_boxes[3:6]
+        axis_angles = np.array([0, 0, gt_boxes[6] + 1e-10])
+        rot = open3d.geometry.get_rotation_matrix_from_axis_angle(axis_angles)
+        box3d = open3d.geometry.OrientedBoundingBox(center, rot, lwh)
+        line_set = open3d.geometry.LineSet.create_from_oriented_bounding_box(box3d)
+        lines = np.asarray(line_set.lines)
+        lines = np.concatenate([lines, np.array([[1, 4], [7, 6]])], axis=0)
+        line_set.lines = open3d.utility.Vector2iVector(lines)
+
+        return line_set, box3d
+
+    @staticmethod
     def visualize(point_cloud_frames, rois, roi_scores, roi_labels):
         """
 
@@ -81,7 +105,34 @@ class Lidar3DObjectDetector(object):
         :param roi_labels:
         :return:
         """
+        # only plot first frame
+        pc_data = point_cloud_frames[0]
 
+        print("rois = {}".format(rois))
+        print("roi_scores = {}".format(roi_scores))
+        print("roi_labels = {}".format(roi_labels))
+
+        # vis = open3d.visualization.Visualizer()
+        # vis.create_window()
+        #
+        # vis.get_render_option().point_size = 1.0
+        # vis.get_render_option().background_color = np.zeros(3)
+        #
+        # # draw origin
+        # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
+        # vis.add_geometry(axis_pcd)
+        #
+        # point_cloud = open3d.geometry.PointCloud()
+        # point_cloud.points = open3d.utility.Vector3dVector(pc_data[:, 0:3])
+        # vis.add_geometry(point_cloud)
+        #
+        # for i in range(gt_boxes.shape[0]):
+        #     line_set, box3d = Lidar3DObjectDetector.translate_boxes_to_open3d_instance(gt_boxes[i])
+        #     line_set.paint_uniform_color((0, 1, 0))
+        #     vis.add_geometry(line_set)
+        #
+        # vis.run()
+        # vis.destroy_window()
 
 
 if __name__ == "__main__":
@@ -94,7 +145,7 @@ if __name__ == "__main__":
     )
 
     # construct test lidar frames
-    sample_lidar_data = np.load("../dataset/lidar_data/000000.npy")
+    sample_lidar_data = np.load("../dataset/lidar_data/000001.npy")
     point_clouds_frames = [sample_lidar_data]
 
     # model inference
