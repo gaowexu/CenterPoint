@@ -7,6 +7,7 @@ from center_point_head import CenterBBoxHead
 from utils.loss_utils import FocalLossCenterNet, RegLossCenterNet
 import utils.centernet_utils as centernet_utils
 from config import CenterPointConfig
+import numpy as np
 
 
 class CenterPoint(nn.Module):
@@ -85,16 +86,16 @@ class CenterPoint(nn.Module):
         :param min_radius:
         :return:
         """
-        # heatmap, ret_boxes, inds, masks的初始化，形状分别为 (num_classes, 248, 216), (500, 8), (500,), (500,)
-        heatmap = gt_boxes.new_zeros(num_classes, feature_map_size[1], feature_map_size[0])
+        # heatmap, ret_boxes, inds, masks的初始化，形状分别为 (num_classes, 216, 248), (500, 8), (500,), (500,)
+        heatmap = gt_boxes.new_zeros(num_classes, feature_map_size[0], feature_map_size[1])
         ret_boxes = gt_boxes.new_zeros((num_max_objs, gt_boxes.shape[-1]))
         inds = gt_boxes.new_zeros(num_max_objs).long()
         mask = gt_boxes.new_zeros(num_max_objs).long()
 
         # gt_boxes的形状为(N, 8), 8代表着 x, y, z, dx, dy, dz, orientation, category_id_in_separate_single_head
         # 其中 dx, dy, dz 也可表示为物体的 length, width, height
-        x, y, z = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2]
-        dx, dy, dz = gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[:, 5]
+        x, y, z, dx, dy, dz = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2], gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[
+                                                                                                              :, 5]
 
         coord_x = (x - point_cloud_range[0]) / voxel_size[0] / feature_map_stride
         coord_y = (y - point_cloud_range[1]) / voxel_size[1] / feature_map_stride
@@ -124,9 +125,11 @@ class CenterPoint(nn.Module):
             # 时加上了1 (加1是因为把0留给了背景类)
             cls_id_in_curr_separate_head = (gt_boxes[k, -1] - 1).long()
 
+            # 根据给定的中心点(center)以及高斯半径(radius)绘制 center-ness score 的热力图，该图会作为训练网络时的拟合目标值
             centernet_utils.draw_gaussian_to_heatmap(heatmap[cls_id_in_curr_separate_head], center[k], radius[k].item())
 
-            inds[k] = center_int[k, 1] * feature_map_size[0] + center_int[k, 0]
+            # 参考docs/scatter.png中的索引定义
+            inds[k] = center_int[k, 0] * feature_map_size[1] + center_int[k, 1]
             mask[k] = 1
 
             ret_boxes[k, 0:2] = center[k] - center_int_float[k].float()
@@ -137,7 +140,7 @@ class CenterPoint(nn.Module):
 
         return heatmap, ret_boxes, inds, mask
 
-    def assign_targets(self, gt_boxes, feature_map_size=None):
+    def assign_targets(self, gt_boxes, feature_map_size=(216, 248)):
         """
         针对给定的 ground truth 3D boxes 生成神经网络的回归的目标值
 
@@ -155,15 +158,15 @@ class CenterPoint(nn.Module):
             "heatmap_masks": list()
         }
 
-        all_names = np.array(["bg", *self._class_names])
+        all_names = np.array(["bg", *self._center_point_config["CLASS_NAMES"]])
         batch_size = len(gt_boxes)
 
-        for index, single_head_class_names in enumerate(self._class_names_each_head):
+        for index, single_head_class_names in enumerate(self._center_point_bbox_head.class_names_each_head):
             target_hm_list, target_boxes_list, target_inds_list, target_masks_list = list(), list(), list(), list()
 
             for batch_index in range(batch_size):
                 gt_boxes_in_curr_sample = gt_boxes[batch_index]
-                gt_class_names_in_curr_sample = all_names[gt_boxes_in_curr_sample[:, 0].cpu().long().numpy()]
+                gt_class_names_in_curr_sample = all_names[gt_boxes_in_curr_sample[:, -1].cpu().long().numpy()]
 
                 gt_boxes_single_head = list()
 
@@ -172,7 +175,7 @@ class CenterPoint(nn.Module):
                         continue
 
                     box = gt_boxes_in_curr_sample[box_index]
-                    box[0] = single_head_class_names.index(name) + 1
+                    box[-1] = single_head_class_names.index(name) + 1
                     gt_boxes_single_head.append(box[None, :])
 
                 if len(gt_boxes_single_head) == 0:
@@ -186,22 +189,24 @@ class CenterPoint(nn.Module):
                     num_classes=len(single_head_class_names),
                     gt_boxes=gt_boxes_single_head.cpu(),
                     feature_map_size=feature_map_size,
-                    feature_map_stride=self._target_assigner_config["feature_map_stride"],
-                    num_max_objs=self._target_assigner_config["NUM_MAX_OBJS"],
-                    gaussian_overlap=self._target_assigner_config["GAUSSIAN_OVERLAP"],
-                    min_radius=self._target_assigner_config["MIN_RADIUS"],
+                    feature_map_stride=self._center_point_config["TARGET_ASSIGNER_CONFIG"]["FEATURE_MAP_STRIDE"],
+                    num_max_objs=self._center_point_config["TARGET_ASSIGNER_CONFIG"]["NUM_MAX_OBJS"],
+                    gaussian_overlap=self._center_point_config["TARGET_ASSIGNER_CONFIG"]["GAUSSIAN_OVERLAP"],
+                    min_radius=self._center_point_config["TARGET_ASSIGNER_CONFIG"]["MIN_RADIUS"],
                 )
 
-                target_hm_list.append(heatmap.to(gt_boxes_single_head.device))
-                target_boxes_list.append(boxes.to(gt_boxes_single_head.device))
-                target_inds_list.append(inds.to(gt_boxes_single_head.device))
-                target_masks_list.append(mask.to(gt_boxes_single_head.device))
+                target_hm_list.append(heatmap.to(self._device))
+                target_boxes_list.append(boxes.to(self._device))
+                target_inds_list.append(inds.to(self._device))
+                target_masks_list.append(mask.to(self._device))
 
             ret_dict['heatmaps'].append(torch.stack(target_hm_list, dim=0))
             ret_dict['target_boxes'].append(torch.stack(target_boxes_list, dim=0))
             ret_dict['inds'].append(torch.stack(target_inds_list, dim=0))
             ret_dict['masks'].append(torch.stack(target_masks_list, dim=0))
 
+        # 将当前batch的真值存起来，计算loss时会依赖它
+        self._forward_ret_dict["target_dicts"] = ret_dict
         return ret_dict
 
     @staticmethod
@@ -210,25 +215,28 @@ class CenterPoint(nn.Module):
         return torch.clamp(x.sigmoid(), min=eps, max=1.0 - eps)
 
     def get_loss(self):
-        pred_dicts = self.forward_ret_dict['pred_dicts']
-        target_dicts = self.forward_ret_dict['target_dicts']
+        pred_dicts = self._forward_ret_dict['pred_dicts']
+        target_dicts = self._forward_ret_dict['target_dicts']
 
-        tb_dict = {}
+        tb_dict = dict()
         loss = 0
 
         for idx, pred_dict in enumerate(pred_dicts):
             pred_dict['hm'] = self.sigmoid(pred_dict['hm'])
+
             hm_loss = self.hm_loss_func(pred_dict['hm'], target_dicts['heatmaps'][idx])
-            hm_loss *= self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['cls_weight']
+            hm_loss *= self._center_point_config["LOSS_CONFIG"]["LOSS_WEIGHTS"]['cls_weight']
 
             target_boxes = target_dicts['target_boxes'][idx]
-            pred_boxes = torch.cat([pred_dict[head_name] for head_name in self.separate_head_cfg.HEAD_ORDER], dim=1)
+            pred_boxes = torch.cat([
+                pred_dict[head_name] for head_name in
+                self._center_point_config["HEAD_CONFIG"]["SEPARATE_HEAD_CONFIG"]["HEAD_ORDER"]], dim=1)
 
             reg_loss = self.reg_loss_func(
                 pred_boxes, target_dicts['masks'][idx], target_dicts['inds'][idx], target_boxes
             )
-            loc_loss = (reg_loss * reg_loss.new_tensor(self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['code_weights'])).sum()
-            loc_loss = loc_loss * self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['loc_weight']
+            loc_loss = (reg_loss * reg_loss.new_tensor(self._center_point_config["LOSS_CONFIG"]["LOSS_WEIGHTS"]['code_weights'])).sum()
+            loc_loss = loc_loss * self._center_point_config["LOSS_CONFIG"]["LOSS_WEIGHTS"]['loc_weight']
 
             loss += hm_loss + loc_loss
             tb_dict['hm_loss_head_%d' % idx] = hm_loss.item()
@@ -268,6 +276,9 @@ class CenterPoint(nn.Module):
 
         # 步骤五：基于CenterPoint Head对3D物体进行目标检测和回归
         predictions_list, rois, roi_scores, roi_labels = self._center_point_bbox_head(x=backbone_feats)
+
+        # 将预测结果存储起来，计算loss时会依赖它
+        self._forward_ret_dict["pred_dicts"] = predictions_list
 
         return predictions_list, rois, roi_scores, roi_labels
 

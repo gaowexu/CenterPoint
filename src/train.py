@@ -5,38 +5,55 @@ from torch.utils.data import DataLoader
 from center_point import CenterPoint
 
 
-def train_one_epoch(dataloader, model, loss_fn, optimizer, device):
-    samples_amount = len(dataloader.dataset)
+def train_one_epoch(dataloader, model, optimizer, device):
     model.train()
     for batch_index, (batch_voxels, batch_indices, batch_nums_per_voxel,
                       batch_sample_indices, batch_gt_3d_boxes_list) in enumerate(dataloader):
-        input_image_batch = input_image_batch.to(device)
-        input_gt_batch = input_gt_batch.to(device)
+        batch_voxels = batch_voxels.to(device)
+        batch_indices = batch_indices.to(device)
+        batch_nums_per_voxel = batch_nums_per_voxel.to(device)
+        batch_sample_indices = batch_sample_indices.to(device)
+
+        # forward
+        predictions_list, rois, roi_scores, roi_labels = model(
+            voxels=batch_voxels,
+            indices=batch_indices,
+            nums_per_voxel=batch_nums_per_voxel,
+            sample_indices=batch_sample_indices
+        )
+
+        # assign targets
+        model.assign_targets(gt_boxes=batch_gt_3d_boxes_list, feature_map_size=[216, 248])
 
         # compute loss
-        logits, probs = model(input_image_batch)
-        loss = loss_fn(logits, input_gt_batch)
+        loss, tb_dict = model.get_loss()
 
         # loss back-propagation
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        if batch_index % 10 == 0:
-            loss, current = loss.item(), batch_index * len(input_image_batch)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{samples_amount:>5d}]")
+        print("Batch = {}/{}: Loss = {}, Head Loss = {}".format(batch_index+1, len(dataloader), loss, tb_dict))
 
 
 def main():
     # Step 1: define dataset
-    train_dataset = CenterPointDataset(phase="train", dataset_config=CenterPointConfig["dataset_config"])
+    train_dataset = CenterPointDataset(
+        voxel_size=CenterPointConfig["VOXEL_SIZE"], class_names=CenterPointConfig["CLASS_NAMES"],
+        point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"], phase="train",
+        dataset_config=CenterPointConfig["DATASET_CONFIG"])
+
     train_dataloader = DataLoader(
-        dataset=train_dataset, batch_size=8, sampler=None, shuffle=False,
+        dataset=train_dataset, batch_size=CenterPointConfig["TRAIN_CONFIG"]["BATCH_SIZE"], sampler=None, shuffle=True,
         num_workers=4, pin_memory=True, collate_fn=train_dataset.collate_batch)
 
-    val_dataset = CenterPointDataset(phase="val", dataset_config=CenterPointConfig["dataset_config"])
+    val_dataset = CenterPointDataset(
+        voxel_size=CenterPointConfig["VOXEL_SIZE"], class_names=CenterPointConfig["CLASS_NAMES"],
+        point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"], phase="val",
+        dataset_config=CenterPointConfig["DATASET_CONFIG"])
+
     val_dataloader = DataLoader(
-        dataset=val_dataset, batch_size=8, sampler=None, shuffle=True,
+        dataset=train_dataset, batch_size=CenterPointConfig["TRAIN_CONFIG"]["BATCH_SIZE"], sampler=None, shuffle=False,
         num_workers=4, pin_memory=True, collate_fn=train_dataset.collate_batch)
 
     print("There are totally {} samples in training dataset.".format(len(train_dataset)))
@@ -46,24 +63,22 @@ def main():
 
     # Step 2: Define model
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    center_point_model = CenterPoint().to(device)
+    center_point_model = CenterPoint(center_point_config=CenterPointConfig).to(device)
 
     # Step 3: Start training
     optimizer = torch.optim.Adam(
         params=center_point_model.parameters(),
-        lr=CenterPointConfig["optimization"]["lr"],
-        weight_decay=CenterPointConfig["optimization"]["weight_decay"]
+        lr=CenterPointConfig["OPTIMIZATION"]["LEARNING_RATE"],
+        weight_decay=CenterPointConfig["OPTIMIZATION"]["WEIGHT_DECAY"]
     )
-    loss_handler = torch.nn.CrossEntropyLoss()
 
-    max_epochs = CenterPointConfig["train_config"]["max_epochs"]
+    max_epochs = CenterPointConfig["TRAIN_CONFIG"]["MAX_EPOCHS"]
     for epoch_index in range(max_epochs):
         print("------------------------------- Epoch {} ----------------------------------".format(epoch_index + 1))
         # 训练一个epoch
         train_one_epoch(
             dataloader=train_dataloader,
             model=center_point_model,
-            loss_fn=loss_handler,
             optimizer=optimizer,
             device=device)
 

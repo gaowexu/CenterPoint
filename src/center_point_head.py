@@ -160,6 +160,10 @@ class CenterBBoxHead(nn.Module):
                 )
             )
 
+    @property
+    def class_names_each_head(self):
+        return self._class_names_each_head
+
     def generate_predicted_boxes(self, batch_size, predictions_list):
         """
         融合 separate head 的预测值，生成预测框

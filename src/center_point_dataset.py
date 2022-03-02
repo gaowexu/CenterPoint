@@ -97,7 +97,7 @@ class CenterPointDataset(Dataset):
             gt_boxes.append([x, y, z, length, width, height, orientation, category_id])
 
         gt_boxes = np.array(gt_boxes)
-        return gt_boxes
+        return torch.from_numpy(gt_boxes)
 
     def collate_batch(self, batch_list, _unused=True):
         batch_voxels_list = list()

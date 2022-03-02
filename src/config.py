@@ -56,11 +56,19 @@ CenterPointConfig = {
         "MAX_EPOCHS": 10,
     },
 
-    "optimization": {
-        "optimizer": "adam",
-        "lr": 0.003,
-        "weight_decay": 0.01,
-        "momentum": 0.9,
+    "LOSS_CONFIG": {
+        "LOSS_WEIGHTS": {
+            'cls_weight': 1.0,
+            'loc_weight': 2.0,
+            'code_weights': [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        }
+    },
+
+    "OPTIMIZATION": {
+        "OPTIMIZER": "adam",
+        "LEARNING_RATE": 0.003,
+        "WEIGHT_DECAY": 0.01,
+        "MOMENTUM": 0.9,
     }
 }
 
