@@ -94,8 +94,8 @@ class CenterPoint(nn.Module):
 
         # gt_boxes的形状为(N, 8), 8代表着 x, y, z, dx, dy, dz, orientation, category_id_in_separate_single_head
         # 其中 dx, dy, dz 也可表示为物体的 length, width, height
-        x, y, z, dx, dy, dz = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2], gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[
-                                                                                                              :, 5]
+        x, y, z = gt_boxes[:, 0], gt_boxes[:, 1], gt_boxes[:, 2]
+        dx, dy, dz = gt_boxes[:, 3], gt_boxes[:, 4], gt_boxes[:, 5]
 
         coord_x = (x - point_cloud_range[0]) / voxel_size[0] / feature_map_stride
         coord_y = (y - point_cloud_range[1]) / voxel_size[1] / feature_map_stride

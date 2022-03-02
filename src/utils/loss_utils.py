@@ -343,8 +343,8 @@ def _reg_loss(regr, gt_regr, mask):
 
 
 def _gather_feat(feat, ind, mask=None):
-    dim  = feat.size(2)
-    ind  = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
+    dim = feat.size(2)
+    ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
     feat = feat.gather(1, ind)
     if mask is not None:
         mask = mask.unsqueeze(2).expand_as(feat)
@@ -354,8 +354,19 @@ def _gather_feat(feat, ind, mask=None):
 
 
 def _transpose_and_gather_feat(feat, ind):
+    """
+
+    :param feat: batch x dim x h x w
+    :param ind: (batch x max_objects)
+    :return:
+    """
+    # feat.shape = (batch_size, 216, 248, 8)
     feat = feat.permute(0, 2, 3, 1).contiguous()
+
+    # feat.shape = (batch_size, 53568, 8)
     feat = feat.view(feat.size(0), -1, feat.size(3))
+
+    # feat.shape = (batch_size, 500, 8)
     feat = _gather_feat(feat, ind)
     return feat
 

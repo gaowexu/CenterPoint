@@ -18,8 +18,8 @@ CenterPointConfig = {
 
     "HEAD_CONFIG": {
         "CLASS_NAMES_EACH_HEAD": [
-            ["Car", "Pedestrian"],
-            ["Cyclist"]
+            ["Car"],
+            ["Pedestrian", "Cyclist"]
         ],
         "SHARED_CONV_CHANNEL": 64,
         "USE_BIAS_BEFORE_NORM": True,
@@ -67,7 +67,7 @@ CenterPointConfig = {
 
     "OPTIMIZATION": {
         "OPTIMIZER": "adam",
-        "LEARNING_RATE": 0.003,
+        "LEARNING_RATE": 0.001,
         "WEIGHT_DECAY": 0.01,
         "MOMENTUM": 0.9,
     }

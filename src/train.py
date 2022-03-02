@@ -48,11 +48,11 @@ def train_one_epoch(epoch_index, dataloader, model, optimizer, device):
         print("Batch = {}/{}: loss = {:.4f}, "
               "hm_loss_head_0 = {:.4f}, loc_loss_head_0 = {:.4f}, "
               "hm_loss_head_1 = {:.4f}, loc_loss_head_1 = {:.4f}, "
-              "rpn_loss = {:.4f}".format(
+              "rois.shape = {}".format(
             batch_index+1, len(dataloader), loss,
             tb_dict["hm_loss_head_0"], tb_dict["loc_loss_head_0"],
             tb_dict["hm_loss_head_1"], tb_dict["loc_loss_head_1"],
-            tb_dict["rpn_loss"]
+            rois.shape
         ))
 
 
@@ -73,7 +73,7 @@ def main():
         dataset_config=CenterPointConfig["DATASET_CONFIG"])
 
     val_dataloader = DataLoader(
-        dataset=train_dataset, batch_size=CenterPointConfig["TRAIN_CONFIG"]["BATCH_SIZE"], sampler=None, shuffle=False,
+        dataset=val_dataset, batch_size=CenterPointConfig["TRAIN_CONFIG"]["BATCH_SIZE"], sampler=None, shuffle=False,
         num_workers=4, pin_memory=True, collate_fn=train_dataset.collate_batch)
 
     print("There are totally {} samples in training dataset.".format(len(train_dataset)))
@@ -104,10 +104,11 @@ def main():
             device=device)
 
         # 保存模型
-        model_save_full_path = os.path.join(
-            CenterPointConfig["MODEL_SAVE_ROOT_DIR"],
-            "center_point_epoch_{}.pth".format(epoch_index))
-        torch.save(center_point_model, model_save_full_path)
+        if epoch_index == 199:
+            model_save_full_path = os.path.join(
+                CenterPointConfig["MODEL_SAVE_ROOT_DIR"],
+                "center_point_epoch_{}.pth".format(epoch_index))
+            torch.save(center_point_model, model_save_full_path)
 
         # # 在验证集上评估性能
         # evaluate(

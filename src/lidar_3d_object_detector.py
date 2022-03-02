@@ -107,32 +107,29 @@ class Lidar3DObjectDetector(object):
         """
         # only plot first frame
         pc_data = point_cloud_frames[0]
+        gt_boxes = rois
 
-        print("rois = {}".format(rois))
-        print("roi_scores = {}".format(roi_scores))
-        print("roi_labels = {}".format(roi_labels))
+        vis = open3d.visualization.Visualizer()
+        vis.create_window()
 
-        # vis = open3d.visualization.Visualizer()
-        # vis.create_window()
-        #
-        # vis.get_render_option().point_size = 1.0
-        # vis.get_render_option().background_color = np.zeros(3)
-        #
-        # # draw origin
-        # axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
-        # vis.add_geometry(axis_pcd)
-        #
-        # point_cloud = open3d.geometry.PointCloud()
-        # point_cloud.points = open3d.utility.Vector3dVector(pc_data[:, 0:3])
-        # vis.add_geometry(point_cloud)
-        #
-        # for i in range(gt_boxes.shape[0]):
-        #     line_set, box3d = Lidar3DObjectDetector.translate_boxes_to_open3d_instance(gt_boxes[i])
-        #     line_set.paint_uniform_color((0, 1, 0))
-        #     vis.add_geometry(line_set)
-        #
-        # vis.run()
-        # vis.destroy_window()
+        vis.get_render_option().point_size = 1.0
+        vis.get_render_option().background_color = np.zeros(3)
+
+        # draw origin
+        axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
+        vis.add_geometry(axis_pcd)
+
+        point_cloud = open3d.geometry.PointCloud()
+        point_cloud.points = open3d.utility.Vector3dVector(pc_data[:, 0:3])
+        vis.add_geometry(point_cloud)
+
+        for i in range(gt_boxes.shape[0]):
+            line_set, box3d = Lidar3DObjectDetector.translate_boxes_to_open3d_instance(gt_boxes[i])
+            line_set.paint_uniform_color((0, 1, 0))
+            vis.add_geometry(line_set)
+
+        vis.run()
+        vis.destroy_window()
 
 
 if __name__ == "__main__":
@@ -140,21 +137,36 @@ if __name__ == "__main__":
         voxel_size=[0.16, 0.16, 4.0],
         point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1.0],
         max_num_points_per_voxel=100,
-        max_num_voxels=40000,
-        model_full_path="../weights/center_point_epoch_6.pth"
+        max_num_voxels=16000,
+        model_full_path="../weights/center_point_epoch_199.pth"
     )
 
-    # construct test lidar frames
-    sample_lidar_data = np.load("../dataset/lidar_data/000001.npy")
-    point_clouds_frames = [sample_lidar_data]
+    for sample_name in ["000000", "000001", "000002", "000003", "000004", "000005", "000006", "000007"]:
+        # construct test lidar frames
+        sample_lidar_data = np.load("../dataset/lidar_data/{}.npy".format(sample_name))
+        point_clouds_frames = [sample_lidar_data]
 
-    # model inference
-    rois, roi_scores, roi_labels = detector.inference(point_clouds_frames=point_clouds_frames)
+        # model inference
+        rois, roi_scores, roi_labels = detector.inference(point_clouds_frames=point_clouds_frames)
+        rois = rois.cpu().detach().numpy()[0]
+        roi_scores = roi_scores.cpu().detach().numpy()[0]
+        roi_labels = roi_labels.cpu().detach().numpy()[0]
 
-    # detection results visualization
-    detector.visualize(
-        point_cloud_frames=point_clouds_frames,
-        rois=rois,
-        roi_scores=roi_scores,
-        roi_labels=roi_labels
-    )
+        confidence_thresh = 0.50
+        selected_index = roi_scores > confidence_thresh
+        rois = rois[selected_index]
+        roi_scores = roi_scores[selected_index]
+        roi_labels = roi_labels[selected_index]
+
+        print("rois.shape = {}".format(rois.shape))
+        print("roi_scores.shape = {}".format(roi_scores.shape))
+        print("roi_labels.shape = {}".format(roi_labels.shape))
+        print("\n")
+
+        # detection results visualization
+        detector.visualize(
+            point_cloud_frames=point_clouds_frames,
+            rois=rois,
+            roi_scores=roi_scores,
+            roi_labels=roi_labels
+        )
