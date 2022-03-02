@@ -83,7 +83,14 @@ def main():
 
     # Step 2: Define model
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    center_point_model = CenterPoint(center_point_config=CenterPointConfig).to(device)
+
+    if CenterPointConfig["TRAIN_CONFIG"]["PRE_TRAINED_WEIGHTS_PATH"] is None:
+        center_point_model = CenterPoint(center_point_config=CenterPointConfig).to(device)
+    else:
+        print("Loading pre-trained model from {}...".format(
+            CenterPointConfig["TRAIN_CONFIG"]["PRE_TRAINED_WEIGHTS_PATH"]))
+        center_point_model = torch.load(
+            CenterPointConfig["TRAIN_CONFIG"]["PRE_TRAINED_WEIGHTS_PATH"], map_location=device)
 
     # Step 3: Start training
     optimizer = torch.optim.Adam(

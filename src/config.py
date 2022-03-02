@@ -53,8 +53,9 @@ CenterPointConfig = {
     },
 
     "TRAIN_CONFIG": {
-        "BATCH_SIZE": 1,
-        "MAX_EPOCHS": 10,
+        "BATCH_SIZE": 4,
+        "MAX_EPOCHS": 200,
+        "PRE_TRAINED_WEIGHTS_PATH": "../weights/center_point_epoch_199.pth"
     },
 
     "LOSS_CONFIG": {
