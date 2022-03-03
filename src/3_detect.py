@@ -150,7 +150,7 @@ if __name__ == "__main__":
         point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"],
         max_num_points_per_voxel=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_POINTS_PER_VOXEL"],
         max_num_voxels=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_VOXELS"]["val"],
-        model_full_path="../weights/center_point_epoch_320.pth"
+        model_full_path="../weights/center_point_epoch_110.pth"
     )
 
     for sample_index in range(0, 28):
@@ -175,8 +175,9 @@ if __name__ == "__main__":
         rois = rois.cpu().detach().numpy()[0]
         roi_scores = roi_scores.cpu().detach().numpy()[0]
         roi_labels = roi_labels.cpu().detach().numpy()[0]
+        print("roi_scores = {}".format(roi_scores))
 
-        confidence_thresh = 0.50
+        confidence_thresh = 0.5
         selected_index = roi_scores > confidence_thresh
         rois = rois[selected_index]
         roi_scores = roi_scores[selected_index]

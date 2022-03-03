@@ -116,6 +116,7 @@ class KITTI2SmartDatasetConverter(object):
                     "truncation": gt["truncation"],
                     "occlusion": gt["occlusion"],
                     "alpha": gt["alpha"],
+                    "box2d": gt["box2d"],
                     "bbox": [x, y, z, length, width, height, yaw]
                 }
             )
@@ -171,6 +172,9 @@ class KITTI2SmartDatasetConverter(object):
 
             # Rotation ry around Z-axis in camera coordinates [-pi..pi]
             ry = float(labels[14])
+
+            if type == "DontCare":
+                continue
 
             ground_truth.append(
                 {
@@ -240,7 +244,7 @@ class KITTI2SmartDatasetConverter(object):
         vis.add_geometry(point_cloud)
 
         for i in range(gt_boxes.shape[0]):
-            line_set, box3d = SamplesExtractor.translate_boxes_to_open3d_instance(gt_boxes[i])
+            line_set, box3d = KITTI2SmartDatasetConverter.translate_boxes_to_open3d_instance(gt_boxes[i])
             line_set.paint_uniform_color((0, 1, 0))
             vis.add_geometry(line_set)
 
@@ -366,12 +370,13 @@ class KITTI2SmartDatasetConverter(object):
             # for it in gts_in_velodyne_coordinate_system:
             #     gt_vis.append(it["bbox"])
             # self.plot_3d_box_in_velodyne_coordinate_system(pc_data=pc_data, gt_boxes=np.array(gt_vis))
+            # break
 
 
 if __name__ == "__main__":
-    extractor = SamplesExtractor(
+    converter = KITTI2SmartDatasetConverter(
         kitti_dataset_root_dir="/home/xuzhu/Solutions/SmartPCDet/dataset/KITTI_3D_OBJECT_DETECTION_DATASET/training",
         dump_dataset_root_dir="../dataset/"
     )
 
-    extractor.convert_dataset()
+    converter.convert_dataset()

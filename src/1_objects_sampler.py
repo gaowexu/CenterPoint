@@ -27,6 +27,30 @@ class LidarObjectsSampler(object):
         self._sample_names = [
             name.strip() for name in open(self._split_train_samples_full_path, "r").readlines() if name.strip()]
 
+    @staticmethod
+    def get_object_difficulty(box2d, truncation, occlusion):
+        """
+        get object difficulty based on KITTI dataset standard
+
+        :param box2d:
+        :param truncation:
+        :param occlusion:
+        :return:
+        """
+        height = float(box2d[3]) - float(box2d[1]) + 1
+        if height >= 40 and truncation <= 0.15 and occlusion <= 0:
+            level_str = 'Easy'
+            return 0
+        elif height >= 25 and truncation <= 0.3 and occlusion <= 1:
+            level_str = 'Moderate'
+            return 1
+        elif height >= 25 and truncation <= 0.5 and occlusion <= 2:
+            level_str = 'Hard'
+            return 2
+        else:
+            level_str = 'UnKnown'
+            return -1
+
     def extract(self):
         """
         Extract ground truth objects and saving them into local disk for further augmentation
@@ -34,6 +58,8 @@ class LidarObjectsSampler(object):
         :return:
         """
         samples_amount = len(self._sample_names)
+        all_boxes_lut = dict()
+
         for index, sample_name in enumerate(self._sample_names):
             print("Exacting sample {} ({}/{}) in training subset...".format(sample_name, index+1, samples_amount))
 
@@ -57,6 +83,7 @@ class LidarObjectsSampler(object):
                 boxes=torch.from_numpy(gt_boxes)
             ).numpy()
 
+            gt_boxes_info = list()
             for obj_idx in range(objs_amount):
                 gt_points = points[point_masks[obj_idx] > 0]
 
@@ -69,6 +96,15 @@ class LidarObjectsSampler(object):
                     "sample_{}_category_{}_{}.npy".format(sample_name, gt_categories[obj_idx], obj_idx)
                 )
                 np.save(dump_full_path, gt_points)
+
+                gt_boxes_info.append({
+                    "category": gt_categories[obj_idx],
+                    "box_points_cloud": None,
+                    "box_center":
+                })
+
+            all_boxes_lut[sample_name] = gt_boxes_info
+
 
 
 if __name__ == "__main__":
