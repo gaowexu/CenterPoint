@@ -6,7 +6,7 @@ from point_pillars_backbone import PointPillarBackbone
 from center_point_head import CenterBBoxHead
 from utils.loss_utils import FocalLossCenterNet, RegLossCenterNet
 import utils.centernet_utils as centernet_utils
-from config import CenterPointConfig
+from center_point_config import CenterPointConfig
 import numpy as np
 
 

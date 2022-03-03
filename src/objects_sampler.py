@@ -72,7 +72,7 @@ class LidarObjectsSampler(object):
 
 
 if __name__ == "__main__":
-    from config import CenterPointConfig
+    from center_point_config import CenterPointConfig
 
     lidar_objects_sampler = LidarObjectsSampler(
         dataset_root_dir=CenterPointConfig["DATASET_CONFIG"]["ROOT_DIR"],

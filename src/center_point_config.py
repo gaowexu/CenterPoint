@@ -2,10 +2,11 @@
 
 CenterPointConfig = {
     "POINT_CLOUD_RANGE": [0, -39.68, -3, 69.12, 39.68, 1.0],
-    "CLASS_NAMES": ["Pedestrian", "Car", "Cyclist"],
+    "CLASS_NAMES": ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van'],
     "VOXEL_SIZE": [0.16, 0.16, 4.0],
     "HEAD_INPUT_CHANNELS": 384,
     "MODEL_SAVE_ROOT_DIR": "../weights/",
+    "OBJECTS_POINT_CLOUDS_SAVING_ROOT_DIR": "../objects/",
 
     "DATASET_CONFIG": {
         "ROOT_DIR": "../dataset",
@@ -18,8 +19,7 @@ CenterPointConfig = {
 
     "HEAD_CONFIG": {
         "CLASS_NAMES_EACH_HEAD": [
-            ["Car"],
-            ["Pedestrian", "Cyclist"]
+            ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van'],
         ],
         "SHARED_CONV_CHANNEL": 64,
         "USE_BIAS_BEFORE_NORM": True,
@@ -45,7 +45,7 @@ CenterPointConfig = {
     "POST_PROCESSING_CONFIG": {
         "SCORE_THRESH": 0.1,
         "POST_CENTER_LIMIT_RANGE": [0, -39.68, -3, 69.12, 39.68, 1.0],
-        "MAX_OBJS_PER_SAMPLE": 100,
+        "MAX_OBJS_PER_SAMPLE": 500,
         "NMS_TYPE": "nms_gpu",
         "NMS_THRESH": 0.70,
         "NMS_PRE_MAX_SIZE": 4096,
@@ -54,8 +54,8 @@ CenterPointConfig = {
 
     "TRAIN_CONFIG": {
         "BATCH_SIZE": 4,
-        "MAX_EPOCHS": 200,
-        "PRE_TRAINED_WEIGHTS_PATH": "../weights/center_point_epoch_199.pth"
+        "MAX_EPOCHS": 400,
+        "PRE_TRAINED_WEIGHTS_PATH": None,
     },
 
     "LOSS_CONFIG": {
@@ -68,7 +68,7 @@ CenterPointConfig = {
 
     "OPTIMIZATION": {
         "OPTIMIZER": "adam",
-        "LEARNING_RATE": 0.001,
+        "LEARNING_RATE": 0.003,
         "WEIGHT_DECAY": 0.01,
         "MOMENTUM": 0.9,
     }

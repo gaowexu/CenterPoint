@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import json
 import open3d
 from voxel_generator import VoxelGenerator
 
@@ -96,7 +97,7 @@ class Lidar3DObjectDetector(object):
         return line_set, box3d
 
     @staticmethod
-    def visualize(point_cloud_frames, rois, roi_scores, roi_labels):
+    def visualize(point_cloud_frames, rois, roi_scores, roi_labels, gt_boxes, gt_labels):
         """
 
         :param point_cloud_frames:
@@ -107,7 +108,9 @@ class Lidar3DObjectDetector(object):
         """
         # only plot first frame
         pc_data = point_cloud_frames[0]
-        gt_boxes = rois
+        predicted_boxes = rois
+        gt_boxes = gt_boxes[0]
+        gt_labels = gt_labels[0]
 
         vis = open3d.visualization.Visualizer()
         vis.create_window()
@@ -123,8 +126,15 @@ class Lidar3DObjectDetector(object):
         point_cloud.points = open3d.utility.Vector3dVector(pc_data[:, 0:3])
         vis.add_geometry(point_cloud)
 
+        # plot ground truth with red boxes
         for i in range(gt_boxes.shape[0]):
             line_set, box3d = Lidar3DObjectDetector.translate_boxes_to_open3d_instance(gt_boxes[i])
+            line_set.paint_uniform_color((1, 0, 0))
+            vis.add_geometry(line_set)
+
+        # predict 3D boxes with green color
+        for i in range(predicted_boxes.shape[0]):
+            line_set, box3d = Lidar3DObjectDetector.translate_boxes_to_open3d_instance(predicted_boxes[i])
             line_set.paint_uniform_color((0, 1, 0))
             vis.add_geometry(line_set)
 
@@ -133,12 +143,14 @@ class Lidar3DObjectDetector(object):
 
 
 if __name__ == "__main__":
+    from center_point_config import CenterPointConfig
+
     detector = Lidar3DObjectDetector(
-        voxel_size=[0.16, 0.16, 4.0],
-        point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1.0],
-        max_num_points_per_voxel=100,
-        max_num_voxels=16000,
-        model_full_path="../weights/center_point_epoch_90.pth"
+        voxel_size=CenterPointConfig["VOXEL_SIZE"],
+        point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"],
+        max_num_points_per_voxel=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_POINTS_PER_VOXEL"],
+        max_num_voxels=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_VOXELS"]["val"],
+        model_full_path="../weights/center_point_epoch_320.pth"
     )
 
     for sample_index in range(0, 28):
@@ -146,7 +158,17 @@ if __name__ == "__main__":
 
         # construct test lidar frames
         sample_lidar_data = np.load("../dataset/lidar_data/{}.npy".format(sample_name))
+        ground_truth_data = json.load(open("../dataset/ground_truth/{}.json".format(sample_name), "r"))
         point_clouds_frames = [sample_lidar_data]
+        gt_boxes = list()
+        gt_labels = list()
+        for label in ground_truth_data:
+            if label["type"] == "DontCare":
+                continue
+
+            gt_boxes.append(label["bbox"])
+            gt_labels.append(CenterPointConfig["CLASS_NAMES"].index(label["type"]))
+        gt_boxes = np.array(gt_boxes)
 
         # model inference
         rois, roi_scores, roi_labels = detector.inference(point_clouds_frames=point_clouds_frames)
@@ -160,9 +182,7 @@ if __name__ == "__main__":
         roi_scores = roi_scores[selected_index]
         roi_labels = roi_labels[selected_index]
 
-        print("rois.shape = {}".format(rois.shape))
-        print("roi_scores.shape = {}".format(roi_scores.shape))
-        print("roi_labels.shape = {}".format(roi_labels.shape))
+        print("roi_scores = {}".format(roi_scores))
         print("\n")
 
         # detection results visualization
@@ -170,5 +190,7 @@ if __name__ == "__main__":
             point_cloud_frames=point_clouds_frames,
             rois=rois,
             roi_scores=roi_scores,
-            roi_labels=roi_labels
+            roi_labels=roi_labels,
+            gt_boxes=[gt_boxes],
+            gt_labels=[gt_labels],
         )

@@ -2,7 +2,7 @@ import sys
 sys.path.append("../")
 import torch
 from center_point_dataset import CenterPointDataset
-from config import CenterPointConfig
+from center_point_config import CenterPointConfig
 from torch.utils.data import DataLoader
 from center_point import CenterPoint
 import os
@@ -47,11 +47,9 @@ def train_one_epoch(epoch_index, dataloader, model, optimizer, device):
 
         print("Batch = {}/{}: loss = {:.4f}, "
               "hm_loss_head_0 = {:.4f}, loc_loss_head_0 = {:.4f}, "
-              "hm_loss_head_1 = {:.4f}, loc_loss_head_1 = {:.4f}, "
               "rois.shape = {}".format(
             batch_index+1, len(dataloader), loss,
             tb_dict["hm_loss_head_0"], tb_dict["loc_loss_head_0"],
-            tb_dict["hm_loss_head_1"], tb_dict["loc_loss_head_1"],
             rois.shape
         ))
 
