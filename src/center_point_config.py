@@ -53,7 +53,7 @@ CenterPointConfig = {
     },
 
     "DATA_AUGMENTATION": {
-        "FILTER_BY_MIN_POINTS": {
+        "FILTER_BY_MIN_POINTS": [
             {"Misc": 5},
             {"Cyclist": 5},
             {"Car": 5},
@@ -61,7 +61,7 @@ CenterPointConfig = {
             {"Truck": 5},
             {"Pedestrian": 5},
             {"Van": 5}
-        },
+        ],
         "FILTER_BY_DIFFICULTY": [-1],
         "SAMPLING_GROUPS": [
             {"Misc": 10},
@@ -98,12 +98,4 @@ CenterPointConfig = {
         "MOMENTUM": 0.9,
     }
 }
-
-
-
-
-
-
-
-
 

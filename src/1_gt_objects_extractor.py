@@ -7,7 +7,7 @@ sys.path.append("../")
 from ops.roiaware_pool3d import roiaware_pool3d_utils
 
 
-class LidarObjectsSampler(object):
+class LidarGroundTruthObjectsExtractor(object):
     def __init__(self, dataset_root_dir, objects_points_cloud_saving_dir):
         """
         Sampling the point clouds for ground truth objects and save them into local disk,
@@ -125,9 +125,9 @@ class LidarObjectsSampler(object):
 if __name__ == "__main__":
     from center_point_config import CenterPointConfig
 
-    lidar_objects_sampler = LidarObjectsSampler(
+    objects_extractor = LidarGroundTruthObjectsExtractor(
         dataset_root_dir=CenterPointConfig["DATASET_CONFIG"]["ROOT_DIR"],
         objects_points_cloud_saving_dir=CenterPointConfig["OBJECTS_POINT_CLOUDS_SAVING_ROOT_DIR"]
     )
 
-    lidar_objects_sampler.extract()
+    objects_extractor.extract()
