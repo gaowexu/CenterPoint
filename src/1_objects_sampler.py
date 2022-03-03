@@ -66,15 +66,7 @@ class LidarObjectsSampler(object):
             points = np.load(os.path.join(self._lidar_data_root_dir, "{}.npy".format(sample_name)))
             gts = json.load(open(os.path.join(self._ground_truth_root_dir, "{}.json".format(sample_name)), "r"))
 
-            gt_boxes, gt_categories = list(), list()
-            for obj_idx, label in enumerate(gts):
-                category = label["type"]
-                if category != "DontCare":
-                    gt_boxes.append(label["bbox"])
-                    gt_categories.append(category)
-
-            gt_boxes = np.array(gt_boxes)
-            objs_amount = len(gt_boxes)
+            gt_boxes = np.array([label["bbox"] for label in gts])
 
             # point_masks's shape = (objs_amount, len(points)), point_masks[i][j] = 1 represents whether the j-th
             # cloud point is inside the i-th ground truth box
@@ -84,7 +76,7 @@ class LidarObjectsSampler(object):
             ).numpy()
 
             gt_boxes_info = list()
-            for obj_idx in range(objs_amount):
+            for obj_idx, label in enumerate(gts):
                 gt_points = points[point_masks[obj_idx] > 0]
 
                 # minus the cloud points of a given object with its center (x_c, y_c, z_c) and then it is
@@ -93,18 +85,29 @@ class LidarObjectsSampler(object):
 
                 dump_full_path = os.path.join(
                     self._objects_points_cloud_saving_dir,
-                    "sample_{}_category_{}_{}.npy".format(sample_name, gt_categories[obj_idx], obj_idx)
+                    "sample_{}_category_{}_{}.npy".format(sample_name, label["type"], obj_idx)
                 )
                 np.save(dump_full_path, gt_points)
 
+                difficulty = self.get_object_difficulty(
+                    box2d=label["box2d"],
+                    truncation=label["truncation"],
+                    occlusion=label["occlusion"]
+                )
+
                 gt_boxes_info.append({
-                    "category": gt_categories[obj_idx],
-                    "box_points_cloud": None,
-                    "box_center":
+                    "category": label["type"],
+                    "num_points_in_gt": len(gt_points),
+                    "difficulty": difficulty,
+                    "box3d": label["bbox"],
+                    "path": dump_full_path,
+                    "gt_index": obj_idx
                 })
 
             all_boxes_lut[sample_name] = gt_boxes_info
 
+        all_boxes_lut_dump_full_path = os.path.join(self._objects_points_cloud_saving_dir, "db_info.json")
+        json.dump(all_boxes_lut, open(all_boxes_lut_dump_full_path, "w"), indent=True)
 
 
 if __name__ == "__main__":
