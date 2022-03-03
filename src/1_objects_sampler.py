@@ -58,7 +58,8 @@ class LidarObjectsSampler(object):
         :return:
         """
         samples_amount = len(self._sample_names)
-        all_boxes_lut = dict()
+        sample_gt_lut = dict()
+        category_gt_lut = dict()
 
         for index, sample_name in enumerate(self._sample_names):
             print("Exacting sample {} ({}/{}) in training subset...".format(sample_name, index+1, samples_amount))
@@ -95,19 +96,30 @@ class LidarObjectsSampler(object):
                     occlusion=label["occlusion"]
                 )
 
-                gt_boxes_info.append({
-                    "category": label["type"],
+                category = label["type"]
+                gt_sampled_object = {
+                    "sample_name": sample_name,
+                    "category": category,
                     "num_points_in_gt": len(gt_points),
                     "difficulty": difficulty,
                     "box3d": label["bbox"],
-                    "path": dump_full_path,
+                    "path": os.path.abspath(dump_full_path),
                     "gt_index": obj_idx
-                })
+                }
+                gt_boxes_info.append(gt_sampled_object)
 
-            all_boxes_lut[sample_name] = gt_boxes_info
+                if category not in category_gt_lut.keys():
+                    category_gt_lut[category] = [gt_sampled_object]
+                else:
+                    category_gt_lut[category].append(gt_sampled_object)
 
-        all_boxes_lut_dump_full_path = os.path.join(self._objects_points_cloud_saving_dir, "db_info.json")
-        json.dump(all_boxes_lut, open(all_boxes_lut_dump_full_path, "w"), indent=True)
+            sample_gt_lut[sample_name] = gt_boxes_info
+
+        sample_gt_lut_dump_full_path = os.path.join(self._objects_points_cloud_saving_dir, "sample_gt_lut.json")
+        json.dump(sample_gt_lut, open(sample_gt_lut_dump_full_path, "w"), indent=True)
+
+        category_gt_lut_dump_full_path = os.path.join(self._objects_points_cloud_saving_dir, "category_gt_lut.json")
+        json.dump(category_gt_lut, open(category_gt_lut_dump_full_path, "w"), indent=True)
 
 
 if __name__ == "__main__":
