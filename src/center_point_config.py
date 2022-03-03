@@ -52,6 +52,31 @@ CenterPointConfig = {
         "NMS_POST_MAX_SIZE": 500
     },
 
+    "DATA_AUGMENTATION": {
+        "FILTER_BY_MIN_POINTS": {
+            {"Misc": 5},
+            {"Cyclist": 5},
+            {"Car": 5},
+            {"Tram": 5},
+            {"Truck": 5},
+            {"Pedestrian": 5},
+            {"Van": 5}
+        },
+        "FILTER_BY_DIFFICULTY": [-1],
+        "SAMPLING_GROUPS": [
+            {"Misc": 10},
+            {"Cyclist": 15},
+            {"Car": 15},
+            {"Tram": 10},
+            {"Truck": 15},
+            {"Pedestrian": 15},
+            {"Van": 15}
+        ],
+        "RANDOM_WORLD_FLIP_ALONG_AXIS_LIST": ["x"],
+        "RANDOM_WORLD_ROTATION_ANGLE": [-0.78539816, 0.78539816],
+        "RANDOM_WORLD_SCALING_RANGE": [0.95, 1.05],
+    },
+
     "TRAIN_CONFIG": {
         "BATCH_SIZE": 4,
         "MAX_EPOCHS": 400,
