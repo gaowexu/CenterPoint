@@ -6,7 +6,7 @@ import copy
 import cv2
 
 
-class SamplesExtractor(object):
+class KITTI2SmartDatasetConverter(object):
     def __init__(self, kitti_dataset_root_dir, dump_dataset_root_dir):
         self._kitti_dataset_root_dir = kitti_dataset_root_dir
         self._dump_dataset_root_dir = dump_dataset_root_dir
