@@ -7,15 +7,22 @@ CenterPointConfig = {
     "HEAD_INPUT_CHANNELS": 384,
     "MODEL_SAVE_ROOT_DIR": "../weights/",
 
-    "DATASET_INFO": {
-        "GROUND_TRUTH_ROOT_DIR": "../db_info/train_gt_objects/",
-        "TRAIN_CATEGORY_GROUND_TRUTH_LUT_FULL_PATH": "../db_info/train_category_gt_lut.json",
+    "DATASET_CONFIG": {
+        "RAW_DATASET_ROOT_DIR": "../dataset",
+        "GT_OBJECTS_SAVE_ROOT_DIR": "../db_info/train_gt_objects/",
+        "TRAIN_CATEGORY_GT_LUT_FULL_PATH": "../db_info/train_category_gt_lut.json",
         "TRAIN_SAMPLES_LABEL_ROOT_DIR": "../db_info/train/",
         "VAL_SAMPLES_LABEL_ROOT_DIR": "../db_info/val/",
-    },
-
-    "DATASET_CONFIG": {
-        "ROOT_DIR": "../dataset",
+        "FILTER_BY_MIN_POINTS": [
+            ("Misc", 5),
+            ("Cyclist", 5),
+            ("Car", 5),
+            ("Tram", 5),
+            ("Truck", 5),
+            ("Pedestrian", 5),
+            ("Van", 5)
+        ],
+        "FILTER_BY_DIFFICULTY": [0, 1, 2],
         "MAX_NUM_POINTS_PER_VOXEL": 100,
         "MAX_NUM_VOXELS": {
             "train": 16000,
@@ -58,29 +65,39 @@ CenterPointConfig = {
         "NMS_POST_MAX_SIZE": 500
     },
 
-    "DATA_AUGMENTATION": {
-        "FILTER_BY_MIN_POINTS": [
-            {"Misc": 5},
-            {"Cyclist": 5},
-            {"Car": 5},
-            {"Tram": 5},
-            {"Truck": 5},
-            {"Pedestrian": 5},
-            {"Van": 5}
-        ],
-        "FILTER_BY_DIFFICULTY": [-1],
+    "DATA_AUGMENTATION_CONFIG": {
         "SAMPLING_GROUPS": [
-            {"Misc": 10},
-            {"Cyclist": 15},
-            {"Car": 15},
-            {"Tram": 10},
-            {"Truck": 15},
-            {"Pedestrian": 15},
-            {"Van": 15}
+            ("Misc", 10),
+            ("Cyclist", 15),
+            ("Car", 15),
+            ("Tram", 10),
+            ("Truck", 15),
+            ("Pedestrian", 15),
+            ("Van", 15)
         ],
-        "RANDOM_WORLD_FLIP_ALONG_AXIS_LIST": ["x"],
-        "RANDOM_WORLD_ROTATION_ANGLE": [-0.78539816, 0.78539816],
-        "RANDOM_WORLD_SCALING_RANGE": [0.95, 1.05],
+        "RANDOM_LOCAL_ROTATION": {
+            "LOCAL_ROT_ANGLE": [-0.15707963267, 0.15707963267]
+        },
+        "RANDOM_LOCAL_SCALING": {
+            "LOCAL_SCALE_RANGE": [0.95, 1.05]
+        },
+        "RANDOM_LOCAL_TRANSLATION": {
+            "ALONG_AXIS_LIST": ["x", "y", "z"],
+            "LOCAL_TRANSLATION_RANGE": [0.95, 1.05]
+        },
+        "RANDOM_WORLD_FLIP": {
+            "ALONG_AXIS_LIST": ["x"]
+        },
+        "RANDOM_WORLD_ROTATION": {
+            "WORLD_ROT_ANGLE": [-0.78539816, 0.78539816]
+        },
+        "RANDOM_WORLD_SCALING": {
+            "WORLD_SCALING_RANGE": [0.95, 1.05]
+        },
+        "RANDOM_WORLD_TRANSLATION": {
+            "ALONG_AXIS_LIST": ["x", "y", "z"],
+            "WORLD_TRANSLATION_RANGE": [-0.25, 0.25]
+        },
     },
 
     "TRAIN_CONFIG": {
