@@ -6,7 +6,13 @@ CenterPointConfig = {
     "VOXEL_SIZE": [0.16, 0.16, 4.0],
     "HEAD_INPUT_CHANNELS": 384,
     "MODEL_SAVE_ROOT_DIR": "../weights/",
-    "OBJECTS_POINT_CLOUDS_SAVING_ROOT_DIR": "../objects/",
+
+    "DATASET_INFO": {
+        "GROUND_TRUTH_ROOT_DIR": "../db_info/train_gt_objects/",
+        "TRAIN_CATEGORY_GROUND_TRUTH_LUT_FULL_PATH": "../db_info/train_category_gt_lut.json",
+        "TRAIN_SAMPLES_LABEL_ROOT_DIR": "../db_info/train/",
+        "VAL_SAMPLES_LABEL_ROOT_DIR": "../db_info/val/",
+    },
 
     "DATASET_CONFIG": {
         "ROOT_DIR": "../dataset",

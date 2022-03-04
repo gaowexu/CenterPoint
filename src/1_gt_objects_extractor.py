@@ -8,24 +8,38 @@ from ops.roiaware_pool3d import roiaware_pool3d_utils
 
 
 class LidarGroundTruthObjectsExtractor(object):
-    def __init__(self, dataset_root_dir, objects_points_cloud_saving_dir):
+    def __init__(self, dataset_root_dir, db_info_config):
         """
         Sampling the point clouds for ground truth objects and save them into local disk,
         which will be used for data augmentation before model training
 
         :param dataset_root_dir: root directory of dataset
-        :param objects_points_cloud_saving_dir: the directory for point cloud saving of each object
+        :param db_info_config: dataset info configuration
         """
         self._dataset_root_dir = dataset_root_dir
-        self._objects_points_cloud_saving_dir = objects_points_cloud_saving_dir
+        self._db_info_config = db_info_config
+        self._objects_points_cloud_saving_dir = self._db_info_config["GROUND_TRUTH_ROOT_DIR"]
+        self._train_category_gt_lut_full_path = self._db_info_config["TRAIN_CATEGORY_GROUND_TRUTH_LUT_FULL_PATH"]
+        self._train_samples_label_root_dir = self._db_info_config["TRAIN_SAMPLES_LABEL_ROOT_DIR"]
+        self._val_samples_label_root_dir = self._db_info_config["VAL_SAMPLES_LABEL_ROOT_DIR"]
+
         if not os.path.exists(self._objects_points_cloud_saving_dir):
             os.makedirs(self._objects_points_cloud_saving_dir)
+
+        if not os.path.exists(self._train_samples_label_root_dir):
+            os.makedirs(self._train_samples_label_root_dir)
+
+        if not os.path.exists(self._val_samples_label_root_dir):
+            os.makedirs(self._val_samples_label_root_dir)
 
         self._lidar_data_root_dir = os.path.join(self._dataset_root_dir, "lidar_data")
         self._ground_truth_root_dir = os.path.join(self._dataset_root_dir, "ground_truth")
         self._split_train_samples_full_path = os.path.join(self._dataset_root_dir, "splits/train.txt")
-        self._sample_names = [
+        self._split_val_samples_full_path = os.path.join(self._dataset_root_dir, "splits/val.txt")
+        self._train_sample_names = [
             name.strip() for name in open(self._split_train_samples_full_path, "r").readlines() if name.strip()]
+        self._val_sample_names = [
+            name.strip() for name in open(self._split_val_samples_full_path, "r").readlines() if name.strip()]
 
     @staticmethod
     def get_object_difficulty(box2d, truncation, occlusion):
@@ -51,17 +65,21 @@ class LidarGroundTruthObjectsExtractor(object):
             level_str = 'UnKnown'
             return -1
 
-    def extract(self):
+    def extract_gt_samples(self, phase="train"):
         """
         Extract ground truth objects and saving them into local disk for further augmentation
-        
+
+        :param phase: "train" or "val"
+
         :return:
         """
-        samples_amount = len(self._sample_names)
-        sample_gt_lut = dict()
+        assert phase in ["train", "val"]
+        samples_names = self._train_sample_names if phase == "train" else self._val_sample_names
+
+        samples_amount = len(samples_names)
         category_gt_lut = dict()
 
-        for index, sample_name in enumerate(self._sample_names):
+        for index, sample_name in enumerate(samples_names):
             print("Exacting sample {} ({}/{}) in training subset...".format(sample_name, index+1, samples_amount))
 
             points = np.load(os.path.join(self._lidar_data_root_dir, "{}.npy".format(sample_name)))
@@ -84,11 +102,14 @@ class LidarGroundTruthObjectsExtractor(object):
                 # position independent object and further could be placed in anywhere on the ground plane
                 gt_points[:, :3] -= gt_boxes[obj_idx, :3]
 
-                dump_full_path = os.path.join(
-                    self._objects_points_cloud_saving_dir,
-                    "sample_{}_category_{}_{}.npy".format(sample_name, label["type"], obj_idx)
-                )
-                np.save(dump_full_path, gt_points)
+                if phase == "train":
+                    dump_full_path = os.path.join(
+                        self._objects_points_cloud_saving_dir,
+                        "sample_{}_category_{}_{}.npy".format(sample_name, label["type"], obj_idx)
+                    )
+                    np.save(dump_full_path, gt_points)
+                else:
+                    dump_full_path = None
 
                 difficulty = self.get_object_difficulty(
                     box2d=label["box2d"],
@@ -103,23 +124,24 @@ class LidarGroundTruthObjectsExtractor(object):
                     "num_points_in_gt": len(gt_points),
                     "difficulty": difficulty,
                     "box3d": label["bbox"],
-                    "path": os.path.abspath(dump_full_path),
+                    "path": os.path.abspath(dump_full_path) if dump_full_path is not None else None,
                     "gt_index": obj_idx
                 }
                 gt_boxes_info.append(gt_sampled_object)
 
-                if category not in category_gt_lut.keys():
-                    category_gt_lut[category] = [gt_sampled_object]
-                else:
-                    category_gt_lut[category].append(gt_sampled_object)
+                if phase == "train":
+                    if category not in category_gt_lut.keys():
+                        category_gt_lut[category] = [gt_sampled_object]
+                    else:
+                        category_gt_lut[category].append(gt_sampled_object)
 
-            sample_gt_lut[sample_name] = gt_boxes_info
+                # save sample detail info into local disk
+                samples_gt_dir = self._train_samples_label_root_dir if phase == "train" else self._val_samples_label_root_dir
+                sample_gt_dump_full_path = os.path.join(samples_gt_dir, "{}.json".format(sample_name))
+                json.dump(gt_boxes_info, open(sample_gt_dump_full_path, "w"), indent=True)
 
-        sample_gt_lut_dump_full_path = os.path.join(self._objects_points_cloud_saving_dir, "sample_gt_lut.json")
-        json.dump(sample_gt_lut, open(sample_gt_lut_dump_full_path, "w"), indent=True)
-
-        category_gt_lut_dump_full_path = os.path.join(self._objects_points_cloud_saving_dir, "category_gt_lut.json")
-        json.dump(category_gt_lut, open(category_gt_lut_dump_full_path, "w"), indent=True)
+        if phase == "train":
+            json.dump(category_gt_lut, open(self._train_category_gt_lut_full_path, "w"), indent=True)
 
 
 if __name__ == "__main__":
@@ -127,7 +149,8 @@ if __name__ == "__main__":
 
     objects_extractor = LidarGroundTruthObjectsExtractor(
         dataset_root_dir=CenterPointConfig["DATASET_CONFIG"]["ROOT_DIR"],
-        objects_points_cloud_saving_dir=CenterPointConfig["OBJECTS_POINT_CLOUDS_SAVING_ROOT_DIR"]
+        db_info_config=CenterPointConfig["DATASET_INFO"]
     )
 
-    objects_extractor.extract()
+    objects_extractor.extract_gt_samples(phase="train")
+    objects_extractor.extract_gt_samples(phase="val")
