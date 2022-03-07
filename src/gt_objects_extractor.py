@@ -132,6 +132,8 @@ class GTObjectsExtractor(object):
                 gt_points[:, :3] -= gt_boxes[obj_idx, :3]
 
                 if phase == "train":
+                    # save each bounding box (including points cloud) into local disk for further data
+                    # augmentation, this is only for training phase.
                     dump_full_path = os.path.join(
                         self._gt_objects_saving_dir,
                         "sample_{}_category_{}_{}.npy".format(sample_name, label["type"], obj_idx)
@@ -147,6 +149,8 @@ class GTObjectsExtractor(object):
                 )
 
                 category = label["type"]
+                # for both training and validation phase, if a bounding box statisfy difficulty and minimum points
+                # filtering condition, then append it to ground truth list
                 if self.statisfy_difficulty_condition(difficulty) and \
                         self.statisfy_min_points_condition(len(gt_points), category):
                     gt_sampled_object = {

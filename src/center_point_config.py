@@ -2,7 +2,7 @@
 
 CenterPointConfig = {
     "POINT_CLOUD_RANGE": [0, -39.68, -3, 69.12, 39.68, 1.0],
-    "CLASS_NAMES": ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van'],
+    "CLASS_NAMES": ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van', 'Person_sitting'],
     "VOXEL_SIZE": [0.16, 0.16, 4.0],
     "HEAD_INPUT_CHANNELS": 384,
     "MODEL_SAVE_ROOT_DIR": "../weights/",
@@ -20,7 +20,8 @@ CenterPointConfig = {
             ("Tram", 5),
             ("Truck", 5),
             ("Pedestrian", 5),
-            ("Van", 5)
+            ("Van", 5),
+            ("Person_sitting", 5),
         ],
         "FILTER_BY_DIFFICULTY": [0, 1, 2],
         "MAX_NUM_POINTS_PER_VOXEL": 100,
@@ -32,7 +33,7 @@ CenterPointConfig = {
 
     "HEAD_CONFIG": {
         "CLASS_NAMES_EACH_HEAD": [
-            ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van'],
+            ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van', 'Person_sitting'],
         ],
         "SHARED_CONV_CHANNEL": 64,
         "USE_BIAS_BEFORE_NORM": True,
@@ -67,13 +68,14 @@ CenterPointConfig = {
 
     "DATA_AUGMENTATION_CONFIG": {
         "SAMPLING_GROUPS": [
-            ("Misc", 10),
-            ("Cyclist", 15),
-            ("Car", 15),
-            ("Tram", 10),
-            ("Truck", 15),
-            ("Pedestrian", 15),
-            ("Van", 15)
+            # ("Misc", 2),
+            ("Cyclist", 5),
+            ("Car", 8),
+            # ("Tram", 3),
+            ("Truck", 5),
+            ("Pedestrian", 5),
+            ("Van", 2),
+            # ("Person_sitting", 2)
         ],
         "RANDOM_LOCAL_ROTATION": {
             "LOCAL_ROT_ANGLE": [-0.15707963267, 0.15707963267]
