@@ -63,8 +63,8 @@ CenterPointConfig = {
         "POST_CENTER_LIMIT_RANGE": [0, -39.68, -3, 69.12, 39.68, 1.0],
         "MAX_OBJS_PER_SAMPLE": 500,
         "NMS_TYPE": "nms_gpu",
-        "NMS_THRESH": 0.70,
-        "NMS_PRE_MAX_SIZE": 4096,
+        "NMS_THRESH": 0.20,
+        "NMS_PRE_MAX_SIZE": 1024,
         "NMS_POST_MAX_SIZE": 500
     },
 
