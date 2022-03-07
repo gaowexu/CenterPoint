@@ -26,8 +26,8 @@ CenterPointConfig = {
         "FILTER_BY_DIFFICULTY": [0, 1, 2],
         "MAX_NUM_POINTS_PER_VOXEL": 100,
         "MAX_NUM_VOXELS": {
-            "train": 16000,
-            "val": 40000,
+            "train": 48000,
+            "val": 48000,
         }
     },
 
