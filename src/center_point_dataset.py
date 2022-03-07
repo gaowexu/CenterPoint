@@ -68,6 +68,10 @@ class CenterPointDataset(Dataset):
             else:
                 ground_truth_full_path = self._dataset_info_config["VAL_SAMPLES_LABEL_ROOT_DIR"]
 
+            gts = json.load(open(os.path.join(ground_truth_full_path, "{}.json".format(sample_name)), "r"))
+            if len(gts) == 0:
+                continue
+
             ret_samples.append({
                 "lidar_data": os.path.join(self._dataset_root_dir, "lidar_data/{}.npy".format(sample_name)),
                 "ground_truth": os.path.join(ground_truth_full_path, "{}.json".format(sample_name))
@@ -198,7 +202,6 @@ class CenterPointDataset(Dataset):
         # plus 1 because the index 0 is for background
         category_indices = np.array([self._class_names.index(cls_name) + 1 for cls_name in category_names])
         category_indices = category_indices[:, np.newaxis]
-
         return torch.from_numpy(np.concatenate((gt_boxes, category_indices), axis=-1))
 
     def collate_batch(self, batch_list, _unused=True):
