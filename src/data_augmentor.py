@@ -223,7 +223,7 @@ class PointsWithBoxes3DAugmentor(object):
         :param gt_names: (N, ), string
         :return:
         """
-        scale_range = self._augmentation_config["RANDOM_WORLD_SCALING_RANGE"]
+        scale_range = self._augmentation_config["RANDOM_WORLD_SCALING"]["RANDOM_WORLD_SCALING_RANGE"]
         gt_boxes, points = augmentor_utils.global_scaling(
             gt_boxes=gt_boxes,
             points=points,

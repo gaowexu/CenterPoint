@@ -89,12 +89,12 @@ class CenterPointDataset(Dataset):
         label_dict = json.load(open(gt_data_full_path, "r"))
         gt_boxes, category_names = self.get_gt_boxes_and_category_names(label_dict=label_dict)
 
-        # if self._phase == "train":
-        #     points, gt_boxes, category_names = self._augmentor.forward(
-        #         points=points,
-        #         gt_boxes=gt_boxes,
-        #         category_names=category_names
-        #     )
+        if self._phase == "train":
+            points, gt_boxes, category_names = self._augmentor.forward(
+                points=points,
+                gt_boxes=gt_boxes,
+                category_names=category_names
+            )
 
         ret_data = {
             "points": points,

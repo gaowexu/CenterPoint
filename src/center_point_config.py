@@ -86,7 +86,7 @@ CenterPointConfig = {
             "LOCAL_SCALE_RANGE": [0.95, 1.05]
         },
         "RANDOM_LOCAL_TRANSLATION": {
-            "ALONG_AXIS_LIST": ["x", "y", "z"],
+            "ALONG_AXIS_LIST": ["x", "y"],
             "LOCAL_TRANSLATION_RANGE": [0.95, 1.05]
         },
         "RANDOM_WORLD_FLIP": {
@@ -100,7 +100,7 @@ CenterPointConfig = {
         },
         "RANDOM_WORLD_TRANSLATION": {
             "ALONG_AXIS_LIST": ["x", "y", "z"],
-            "WORLD_TRANSLATION_RANGE": [-0.25, 0.25]
+            "WORLD_TRANSLATION_RANGE": [0.10, 0.25]
         },
     },
 
