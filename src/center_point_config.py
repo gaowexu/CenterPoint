@@ -104,7 +104,7 @@ CenterPointConfig = {
     },
 
     "TRAIN_CONFIG": {
-        "BATCH_SIZE": 4,
+        "BATCH_SIZE": 8,
         "MAX_EPOCHS": 400,
         "PRE_TRAINED_WEIGHTS_PATH": None,
     },
