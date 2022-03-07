@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from voxel_generator import VoxelGenerator
-from data_augmentor import DataAugmentor
+from data_augmentor import PointsWithBoxes3DAugmentor
 import open3d
 
 
@@ -32,7 +32,7 @@ class CenterPointDataset(Dataset):
         self._class_names = class_names
         self._point_cloud_range = point_cloud_range
 
-        self._dataset_root_dir = self._dataset_config["ROOT_DIR"]
+        self._dataset_root_dir = self._dataset_config["RAW_DATASET_ROOT_DIR"]
         self._max_num_points_per_voxel = self._dataset_config["MAX_NUM_POINTS_PER_VOXEL"]
         self._max_num_voxels = self._dataset_config["MAX_NUM_VOXELS"][phase]
 
@@ -45,7 +45,9 @@ class CenterPointDataset(Dataset):
         )
 
         # create data augmentation handler
-        self._augmentor = DataAugmentor(augmentation_config=self._augmentation_config)
+        self._augmentor = PointsWithBoxes3DAugmentor(
+            category_name_gt_lut_full_path=self._dataset_config["TRAIN_CATEGORY_GT_LUT_FULL_PATH"],
+            augmentation_config=self._augmentation_config)
 
         # 获取所有的样本数据
         self._samples = self.collect_samples()
@@ -252,18 +254,18 @@ if __name__ == "__main__":
         point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"],
         phase="train",
         dataset_config=CenterPointConfig["DATASET_CONFIG"],
-        augmentation_config=CenterPointConfig["DATA_AUGMENTATION"],
-        dataset_info_config=CenterPointConfig["DATASET_INFO"]
+        augmentation_config=CenterPointConfig["DATA_AUGMENTATION_CONFIG"],
+        dataset_info_config=CenterPointConfig["DATASET_CONFIG"]
     )
 
     train_dataloader = DataLoader(
         dataset=train_dataset,
-        batch_size=4,
+        batch_size=1,
         sampler=None,
         shuffle=False,
         num_workers=4,
         pin_memory=True,
-        # prefetch_factor=2,
+        prefetch_factor=5,
         collate_fn=train_dataset.collate_batch
     )
 

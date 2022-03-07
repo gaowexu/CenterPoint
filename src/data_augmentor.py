@@ -1,6 +1,7 @@
 from utils import augmentor_utils
 import numpy as np
 import json
+from ops.iou3d_nms import iou3d_nms_utils
 
 
 class PointsWithBoxes3DAugmentor(object):
@@ -17,11 +18,14 @@ class PointsWithBoxes3DAugmentor(object):
         # load ground truth samples pool from training dataset
         self._train_gt_boxes_pool = json.load(open(self._category_name_gt_lut_full_path, "r"))
 
+        self._limit_whole_scene = self._augmentation_config["LIMIT_WHOLE_SCENE"]
         self._sample_groups_config = self._augmentation_config["SAMPLING_GROUPS"]
 
         # build samples group look-up table (LUT)
         self._sample_groups = dict()
+        self._sample_category_num = dict()
         for category_name, sample_num in self._sample_groups_config:
+            self._sample_category_num[category_name] = sample_num
             self._sample_groups[category_name] = {
                 "sample_num": sample_num,
                 "pointer": len(self._train_gt_boxes_pool[category_name]),
@@ -57,16 +61,89 @@ class PointsWithBoxes3DAugmentor(object):
 
         return sampled_gt_list
 
-    def place_sampled_objects_on_current_points(self, points, gt_boxes, category_names):
+    def place_sampled_objects_on_current_points(self, raw_points, raw_gt_boxes, raw_gt_names):
         """
-        place sampled ground truth objects on current lidar point cloud
+        Place sampled ground truth objects on current lidar point cloud
 
-        :param points: lidar points, np.ndarray, shape is (N, 4), 4 indicates (x, y, z, intensity)
-        :param gt_boxes: original ground truth boxes, shape is (M, 7), 7 indicates (x, y, z, l, w, h, orientation)
-        :param category_names: (M, ), string
+        :param raw_points: lidar points, np.ndarray, shape is (N, 4), 4 indicates (x, y, z, intensity)
+        :param raw_gt_boxes: original ground truth boxes, shape is (M, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param raw_gt_names: (M, ), string, np.ndarray
         :return:
         """
-        pass
+        total_valid_sampled_dict = list()
+        existed_boxes = raw_gt_boxes
+
+        for category_name, sample_group in self._sample_groups.items():
+            if self._limit_whole_scene:
+                # limit the total amount of a given category name, the original existing boxes of this category plus
+                # the augmented ones should not be larger than target value self._sample_category_num[category_name]
+                num_gt = np.sum(category_name == raw_gt_names)
+                sample_group['sample_num'] = self._sample_category_num[category_name] - num_gt
+
+            # if self._sample_category_num[category_name] - num_gt is larger than 0, then do boxes augmentation
+            if sample_group['sample_num'] > 0:
+                sampled_dict = self.sample_with_fixed_number(category_name=category_name, sample_group=sample_group)
+                sampled_boxes = np.stack([x['box3d'] for x in sampled_dict], axis=0).astype(np.float32)
+
+                # calculate the IoU between sampled boxes and original existing boxes
+                iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], raw_gt_boxes[:, 0:7])
+
+                # calculate the IoU between sampled boxes
+                iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], sampled_boxes[:, 0:7])
+
+                iou2[range(sampled_boxes.shape[0]), range(sampled_boxes.shape[0])] = 0
+                iou1 = iou1 if iou1.shape[1] > 0 else iou2
+                valid_mask = ((iou1.max(axis=1) + iou2.max(axis=1)) == 0).nonzero()[0]
+                valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
+                valid_sampled_boxes = sampled_boxes[valid_mask]
+
+                existed_boxes = np.concatenate((raw_gt_boxes, valid_sampled_boxes), axis=0)
+                total_valid_sampled_dict.extend(valid_sampled_dict)
+
+        sampled_gt_boxes = existed_boxes[raw_gt_boxes.shape[0]:, :]
+        if len(total_valid_sampled_dict) > 0:
+            points_aug, gt_boxes_aug, gt_names_aug = self.add_sampled_boxes_to_scene(
+                raw_points=raw_points,
+                raw_gt_boxes=raw_gt_boxes,
+                raw_gt_names=raw_gt_names,
+                sampled_gt_boxes=sampled_gt_boxes,
+                total_valid_sampled_dict=total_valid_sampled_dict)
+        else:
+            points_aug, gt_boxes_aug, gt_names_aug = raw_points, raw_gt_boxes, raw_gt_names
+
+        return points_aug, gt_boxes_aug, gt_names_aug
+
+    def add_sampled_boxes_to_scene(self, raw_points, raw_gt_boxes, raw_gt_names,
+                                   sampled_gt_boxes, total_valid_sampled_dict):
+        """
+        Append sampled boxes and their corresponding points cloud to original ground truth and points
+
+        :param raw_points: original points, np.ndarray, shape is (N, 4)
+        :param raw_gt_boxes: original ground truth bounding boxes, shape is (M, 7)
+        :param raw_gt_names: (M, ), string, np.ndarray
+        :param sampled_gt_boxes: sampled bounding boxes, shape is (K, 7)
+        :param total_valid_sampled_dict: list of dictionary, length is K
+        :return:
+        """
+        points = raw_points
+        if self._use_road_plane:
+            sampled_gt_boxes, mv_height = self.put_boxes_on_road_planes(
+                sampled_gt_boxes=sampled_gt_boxes,
+                road_plane=road_plane
+            )
+
+        obj_points_list = list()
+
+
+
+
+
+        points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
+        points_aug = np.concatenate([obj_points, points], axis=0)
+        gt_boxes_aug = np.concatenate([raw_gt_boxes, sampled_gt_boxes], axis=0)
+        gt_names_aug = np.concatenate([raw_gt_names, sampled_gt_names], axis=0)
+
+        return points_aug, gt_boxes_aug, gt_names_aug
 
     def random_world_flip(self, points, gt_boxes):
         flip_axis_list = self._augmentation_config["RANDOM_WORLD_FLIP_ALONG_AXIS_LIST"]

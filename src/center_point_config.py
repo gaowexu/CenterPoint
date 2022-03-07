@@ -67,6 +67,7 @@ CenterPointConfig = {
     },
 
     "DATA_AUGMENTATION_CONFIG": {
+        "LIMIT_WHOLE_SCENE": True,
         "SAMPLING_GROUPS": [
             # ("Misc", 2),
             ("Cyclist", 5),

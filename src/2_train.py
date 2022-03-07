@@ -59,7 +59,9 @@ def main():
     train_dataset = CenterPointDataset(
         voxel_size=CenterPointConfig["VOXEL_SIZE"], class_names=CenterPointConfig["CLASS_NAMES"],
         point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"], phase="train",
-        dataset_config=CenterPointConfig["DATASET_CONFIG"])
+        dataset_config=CenterPointConfig["DATASET_CONFIG"],
+        augmentation_config=CenterPointConfig["DATA_AUGMENTATION_CONFIG"],
+        dataset_info_config=CenterPointConfig["DATASET_CONFIG"])
 
     train_dataloader = DataLoader(
         dataset=train_dataset, batch_size=CenterPointConfig["TRAIN_CONFIG"]["BATCH_SIZE"], sampler=None, shuffle=True,
@@ -68,7 +70,9 @@ def main():
     val_dataset = CenterPointDataset(
         voxel_size=CenterPointConfig["VOXEL_SIZE"], class_names=CenterPointConfig["CLASS_NAMES"],
         point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"], phase="val",
-        dataset_config=CenterPointConfig["DATASET_CONFIG"])
+        dataset_config=CenterPointConfig["DATASET_CONFIG"],
+        augmentation_config=CenterPointConfig["DATA_AUGMENTATION_CONFIG"],
+        dataset_info_config=CenterPointConfig["DATASET_CONFIG"])
 
     val_dataloader = DataLoader(
         dataset=val_dataset, batch_size=CenterPointConfig["TRAIN_CONFIG"]["BATCH_SIZE"], sampler=None, shuffle=False,
