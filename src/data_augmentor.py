@@ -88,7 +88,7 @@ class PointsWithBoxes3DAugmentor(object):
                 sampled_boxes = np.stack([x['box3d'] for x in sampled_dict], axis=0).astype(np.float32)
 
                 # calculate the IoU between sampled boxes and original existing boxes
-                iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], raw_gt_boxes[:, 0:7])
+                iou1 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], existed_boxes[:, 0:7])
 
                 # calculate the IoU between sampled boxes
                 iou2 = iou3d_nms_utils.boxes_bev_iou_cpu(sampled_boxes[:, 0:7], sampled_boxes[:, 0:7])
@@ -99,7 +99,7 @@ class PointsWithBoxes3DAugmentor(object):
                 valid_sampled_dict = [sampled_dict[x] for x in valid_mask]
                 valid_sampled_boxes = sampled_boxes[valid_mask]
 
-                existed_boxes = np.concatenate((raw_gt_boxes, valid_sampled_boxes), axis=0)
+                existed_boxes = np.concatenate((existed_boxes, valid_sampled_boxes), axis=0)
                 total_valid_sampled_dict.extend(valid_sampled_dict)
 
         sampled_gt_boxes = existed_boxes[raw_gt_boxes.shape[0]:, :]
@@ -128,7 +128,6 @@ class PointsWithBoxes3DAugmentor(object):
         :return:
         """
         obj_points_list = list()
-
         for idx, info in enumerate(total_valid_sampled_dict):
             gt_box_npy_full_path = info["path"]
             obj_points = np.load(gt_box_npy_full_path)
@@ -223,7 +222,7 @@ class PointsWithBoxes3DAugmentor(object):
         :param gt_names: (N, ), string
         :return:
         """
-        scale_range = self._augmentation_config["RANDOM_WORLD_SCALING"]["RANDOM_WORLD_SCALING_RANGE"]
+        scale_range = self._augmentation_config["RANDOM_WORLD_SCALING"]["WORLD_SCALING_RANGE"]
         gt_boxes, points = augmentor_utils.global_scaling(
             gt_boxes=gt_boxes,
             points=points,
@@ -305,14 +304,12 @@ class PointsWithBoxes3DAugmentor(object):
         )
 
         points, gt_boxes, gt_names = self.random_world_flip(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
-        points, gt_boxes, gt_names = self.random_world_translation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
         points, gt_boxes, gt_names = self.random_world_rotation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
         points, gt_boxes, gt_names = self.random_world_scaling(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
-        points, gt_boxes, gt_names = self.random_local_translation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
         points, gt_boxes, gt_names = self.random_local_rotation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
         points, gt_boxes, gt_names = self.random_local_scaling(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
 
-        return points, gt_boxes, category_names
+        return points, gt_boxes, gt_names
 
 
 if __name__ == "__main__":

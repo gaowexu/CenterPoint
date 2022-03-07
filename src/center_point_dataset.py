@@ -263,7 +263,7 @@ if __name__ == "__main__":
 
     train_dataloader = DataLoader(
         dataset=train_dataset,
-        batch_size=1,
+        batch_size=8,
         sampler=None,
         shuffle=False,
         num_workers=4,
@@ -281,6 +281,5 @@ if __name__ == "__main__":
         print("batch_sample_indices.shape = {}".format(sample_indices.shape))
 
         print("\n")
-        break
 
     print(len(train_dataloader))
