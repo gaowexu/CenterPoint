@@ -2,6 +2,7 @@ from utils import augmentor_utils
 import numpy as np
 import json
 from ops.iou3d_nms import iou3d_nms_utils
+import utils.box_utils as box_utils
 
 
 class PointsWithBoxes3DAugmentor(object):
@@ -9,8 +10,8 @@ class PointsWithBoxes3DAugmentor(object):
         """
         Constructor
 
-        :param category_name_gt_lut_full_path:
-        :param augmentation_config:
+        :param category_name_gt_lut_full_path: full path of training ground truth (boxes) look-up table
+        :param augmentation_config: configuration of augmentation
         """
         self._category_name_gt_lut_full_path = category_name_gt_lut_full_path
         self._augmentation_config = augmentation_config
@@ -20,6 +21,7 @@ class PointsWithBoxes3DAugmentor(object):
 
         self._limit_whole_scene = self._augmentation_config["LIMIT_WHOLE_SCENE"]
         self._sample_groups_config = self._augmentation_config["SAMPLING_GROUPS"]
+        self._extra_width = self._augmentation_config["EXTRA_WIDTH"]
 
         # build samples group look-up table (LUT)
         self._sample_groups = dict()
@@ -125,62 +127,167 @@ class PointsWithBoxes3DAugmentor(object):
         :param total_valid_sampled_dict: list of dictionary, length is K
         :return:
         """
-        points = raw_points
-        if self._use_road_plane:
-            sampled_gt_boxes, mv_height = self.put_boxes_on_road_planes(
-                sampled_gt_boxes=sampled_gt_boxes,
-                road_plane=road_plane
-            )
-
         obj_points_list = list()
 
+        for idx, info in enumerate(total_valid_sampled_dict):
+            gt_box_npy_full_path = info["path"]
+            obj_points = np.load(gt_box_npy_full_path)
 
+            obj_points[:, :3] += info["box3d"][:3]
+            obj_points_list.append(obj_points)
 
+        obj_points = np.concatenate(obj_points_list, axis=0)
+        sampled_gt_names = np.array([x["category"] for x in total_valid_sampled_dict])
 
+        # enlarge the ground truth bounding boxes
+        large_sampled_gt_boxes = box_utils.enlarge_box3d(
+            boxes3d=sampled_gt_boxes[:, 0:7],
+            extra_width=self._extra_width)
 
-        points = box_utils.remove_points_in_boxes3d(points, large_sampled_gt_boxes)
+        # remove points in sampled bounding boxes
+        points = box_utils.remove_points_in_boxes3d(raw_points, large_sampled_gt_boxes)
+
+        # concatenate points with sampled objects' points
         points_aug = np.concatenate([obj_points, points], axis=0)
         gt_boxes_aug = np.concatenate([raw_gt_boxes, sampled_gt_boxes], axis=0)
         gt_names_aug = np.concatenate([raw_gt_names, sampled_gt_names], axis=0)
 
         return points_aug, gt_boxes_aug, gt_names_aug
 
-    def random_world_flip(self, points, gt_boxes):
-        flip_axis_list = self._augmentation_config["RANDOM_WORLD_FLIP_ALONG_AXIS_LIST"]
+    def random_world_flip(self, points, gt_boxes, gt_names):
+        """
+        Flip the world (points cloud) randomly
 
-        for axis in flip_axis_list:
-            assert axis in ["x", "y"]
-            if axis == "x":
-                gt_boxes, points = augmentor_utils.random_flip_along_x(
-                    gt_boxes=gt_boxes,
-                    points=points)
-            else:
-                gt_boxes, points = augmentor_utils.random_flip_along_y(
-                    gt_boxes=gt_boxes,
-                    points=points)
+        :param points: (N, 4), 4 indicates (x, y, z, intensity)
+        :param gt_boxes: (N, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param gt_names: (N, ), string
+        :return:
+        """
+        flip_axis_list = self._augmentation_config["RANDOM_WORLD_FLIP"]["ALONG_AXIS_LIST"]
 
-        return points, gt_boxes
+        for cur_axis in flip_axis_list:
+            assert cur_axis in ["x", "y"]
 
-    def random_world_rotation(self, points, gt_boxes):
-        rotation_range = self._augmentation_config["RANDOM_WORLD_ROTATION_ANGLE"]
-        assert isinstance(rotation_range, list)
+            gt_boxes, points = getattr(augmentor_utils, "random_flip_along_{}".format(cur_axis))(
+                gt_boxes=gt_boxes,
+                points=points
+            )
+
+        return points, gt_boxes, gt_names
+
+    def random_world_translation(self, points, gt_boxes, gt_names):
+        """
+        Translate world randomly
+
+        :param points: (N, 4), 4 indicates (x, y, z, intensity)
+        :param gt_boxes: (N, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param gt_names: (N, ), string
+        :return:
+        """
+        along_axis_list = self._augmentation_config["RANDOM_WORLD_TRANSLATION"]["ALONG_AXIS_LIST"]
+        world_translation_range = self._augmentation_config["RANDOM_WORLD_TRANSLATION"]["WORLD_TRANSLATION_RANGE"]
+
+        for cur_axis in along_axis_list:
+            assert cur_axis in ["x", "y", "z"]
+            gt_boxes, points = getattr(augmentor_utils, "random_translation_along_{}".format(cur_axis))(
+                gt_boxes=gt_boxes,
+                points=points,
+                offset_std=world_translation_range
+            )
+
+        return points, gt_boxes, gt_names
+
+    def random_world_rotation(self, points, gt_boxes, gt_names):
+        """
+        Rotate world randomly
+
+        :param points: (N, 4), 4 indicates (x, y, z, intensity)
+        :param gt_boxes: (N, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param gt_names: (N, ), string
+        :return:
+        """
+        rotation_range = self._augmentation_config["RANDOM_WORLD_ROTATION"]["WORLD_ROT_ANGLE"]
         gt_boxes, points = augmentor_utils.global_rotation(
             gt_boxes=gt_boxes,
             points=points,
             rot_range=rotation_range
         )
-        return points, gt_boxes
+        return points, gt_boxes, gt_names
 
-    def random_world_scaling(self, points, gt_boxes):
+    def random_world_scaling(self, points, gt_boxes, gt_names):
+        """
+        Scale world randomly
+
+        :param points: (N, 4), 4 indicates (x, y, z, intensity)
+        :param gt_boxes: (N, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param gt_names: (N, ), string
+        :return:
+        """
         scale_range = self._augmentation_config["RANDOM_WORLD_SCALING_RANGE"]
-        assert isinstance(scale_range, list)
-
         gt_boxes, points = augmentor_utils.global_scaling(
             gt_boxes=gt_boxes,
             points=points,
             scale_range=scale_range
         )
-        return points, gt_boxes
+        return points, gt_boxes, gt_names
+
+    def random_local_translation(self, points, gt_boxes, gt_names):
+        """
+        Local translation along x/y/z axis
+
+        :param points: (N, 4), 4 indicates (x, y, z, intensity)
+        :param gt_boxes: (N, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param gt_names: (N, ), string
+        :return:
+        """
+        along_axis_list = self._augmentation_config["RANDOM_LOCAL_TRANSLATION"]["ALONG_AXIS_LIST"]
+        local_translation_range = self._augmentation_config["RANDOM_LOCAL_TRANSLATION"]["LOCAL_TRANSLATION_RANGE"]
+
+        for cur_axis in along_axis_list:
+            assert cur_axis in ["x", "y", "z"]
+            gt_boxes, points = getattr(augmentor_utils, "random_local_translation_along_{}".format(cur_axis))(
+                gt_boxes=gt_boxes,
+                points=points,
+                offset_range=local_translation_range
+            )
+
+        return points, gt_boxes, gt_names
+
+    def random_local_rotation(self, points, gt_boxes, gt_names):
+        """
+        Local rotation randomly
+
+        :param points: (N, 4), 4 indicates (x, y, z, intensity)
+        :param gt_boxes: (N, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param gt_names: (N, ), string
+        :return:
+        """
+        rot_range = self._augmentation_config["RANDOM_LOCAL_ROTATION"]["LOCAL_ROT_ANGLE"]
+        gt_boxes, points = augmentor_utils.local_rotation(
+            gt_boxes=gt_boxes,
+            points=points,
+            rot_range=rot_range
+        )
+
+        return points, gt_boxes, gt_names
+
+    def random_local_scaling(self, points, gt_boxes, gt_names):
+        """
+        Local scaling randomly
+
+        :param points: (N, 4), 4 indicates (x, y, z, intensity)
+        :param gt_boxes: (N, 7), 7 indicates (x, y, z, l, w, h, orientation)
+        :param gt_names: (N, ), string
+        :return:
+        """
+        scale_range = self._augmentation_config["RANDOM_LOCAL_SCALING"]["LOCAL_SCALE_RANGE"]
+        gt_boxes, points = augmentor_utils.local_scaling(
+            gt_boxes=gt_boxes,
+            points=points,
+            scale_range=scale_range
+        )
+
+        return points, gt_boxes, gt_names
 
     def forward(self, points, gt_boxes, category_names):
         """
@@ -191,7 +298,20 @@ class PointsWithBoxes3DAugmentor(object):
         :param category_names: (N, ), string
         :return:
         """
-        points, gt_boxes = self.random_world_scaling(points=points, gt_boxes=gt_boxes)
+        points, gt_boxes, gt_names = self.place_sampled_objects_on_current_points(
+            raw_points=points,
+            raw_gt_boxes=gt_boxes,
+            raw_gt_names=category_names
+        )
+
+        points, gt_boxes, gt_names = self.random_world_flip(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
+        points, gt_boxes, gt_names = self.random_world_translation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
+        points, gt_boxes, gt_names = self.random_world_rotation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
+        points, gt_boxes, gt_names = self.random_world_scaling(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
+        points, gt_boxes, gt_names = self.random_local_translation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
+        points, gt_boxes, gt_names = self.random_local_rotation(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
+        points, gt_boxes, gt_names = self.random_local_scaling(points=points, gt_boxes=gt_boxes, gt_names=gt_names)
+
         return points, gt_boxes, category_names
 
 
