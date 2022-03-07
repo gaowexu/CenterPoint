@@ -2,7 +2,8 @@
 
 CenterPointConfig = {
     "POINT_CLOUD_RANGE": [0, -39.68, -3, 69.12, 39.68, 1.0],
-    "CLASS_NAMES": ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van', 'Person_sitting'],
+    # "CLASS_NAMES": ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van', 'Person_sitting'],
+    "CLASS_NAMES": ['Cyclist', 'Car', 'Pedestrian'],
     "VOXEL_SIZE": [0.16, 0.16, 4.0],
     "HEAD_INPUT_CHANNELS": 384,
     "MODEL_SAVE_ROOT_DIR": "../weights/",
@@ -14,26 +15,27 @@ CenterPointConfig = {
         "TRAIN_SAMPLES_LABEL_ROOT_DIR": "../db_info/train/",
         "VAL_SAMPLES_LABEL_ROOT_DIR": "../db_info/val/",
         "FILTER_BY_MIN_POINTS": [
-            ("Misc", 2),
-            ("Cyclist", 3),
-            ("Car", 8),
-            ("Tram", 2),
-            ("Truck", 2),
-            ("Pedestrian", 5),
-            ("Van", 5),
-            ("Person_sitting", 5),
+            # ("Misc", 12),
+            ("Cyclist", 12),
+            ("Car", 12),
+            # ("Tram", 12),
+            # ("Truck", 12),
+            ("Pedestrian", 12),
+            # ("Van", 12),
+            # ("Person_sitting", 12),
         ],
         "FILTER_BY_DIFFICULTY": [0, 1, 2],
         "MAX_NUM_POINTS_PER_VOXEL": 100,
         "MAX_NUM_VOXELS": {
-            "train": 48000,
-            "val": 48000,
+            "train": 16000,
+            "val": 40000,
         }
     },
 
     "HEAD_CONFIG": {
         "CLASS_NAMES_EACH_HEAD": [
-            ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van', 'Person_sitting'],
+            # ['Misc', 'Cyclist', 'Car', 'Tram', 'Truck', 'Pedestrian', 'Van', 'Person_sitting'],
+            ['Cyclist', 'Car', 'Pedestrian'],
         ],
         "SHARED_CONV_CHANNEL": 64,
         "USE_BIAS_BEFORE_NORM": True,
@@ -74,9 +76,9 @@ CenterPointConfig = {
             ("Cyclist", 5),
             ("Car", 8),
             # ("Tram", 3),
-            ("Truck", 5),
+            # ("Truck", 5),
             ("Pedestrian", 5),
-            ("Van", 2),
+            # ("Van", 3),
             # ("Person_sitting", 2)
         ],
         "RANDOM_LOCAL_ROTATION": {

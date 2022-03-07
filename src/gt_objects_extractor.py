@@ -8,13 +8,15 @@ from ops.roiaware_pool3d import roiaware_pool3d_utils
 
 
 class GTObjectsExtractor(object):
-    def __init__(self, dataset_config):
+    def __init__(self, category_names, dataset_config):
         """
         Sampling the point clouds for ground truth objects and save them into local disk,
         which will be used for data augmentation before model training
 
+        :param category_names: category names we are interested in
         :param dataset_config: configuration of dataset
         """
+        self._category_names = category_names
         self._dataset_config = dataset_config
         self._raw_dataset_root_dir = self._dataset_config["RAW_DATASET_ROOT_DIR"]
         self._gt_objects_saving_dir = self._dataset_config["GT_OBJECTS_SAVE_ROOT_DIR"]
@@ -149,6 +151,9 @@ class GTObjectsExtractor(object):
                 )
 
                 category = label["type"]
+                if category not in self._category_names:
+                    continue
+
                 # for both training and validation phase, if a bounding box statisfy difficulty and minimum points
                 # filtering condition, then append it to ground truth list
                 if self.statisfy_difficulty_condition(difficulty) and \
@@ -185,6 +190,7 @@ if __name__ == "__main__":
     from center_point_config import CenterPointConfig
 
     objects_extractor = GTObjectsExtractor(
+        category_names=CenterPointConfig["CLASS_NAMES"],
         dataset_config=CenterPointConfig["DATASET_CONFIG"]
     )
 

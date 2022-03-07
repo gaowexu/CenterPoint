@@ -260,6 +260,7 @@ if __name__ == "__main__":
         augmentation_config=CenterPointConfig["DATA_AUGMENTATION_CONFIG"],
         dataset_info_config=CenterPointConfig["DATASET_CONFIG"]
     )
+    print(len(train_dataset))
 
     train_dataloader = DataLoader(
         dataset=train_dataset,
