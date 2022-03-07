@@ -6,10 +6,32 @@ from center_point_config import CenterPointConfig
 from torch.utils.data import DataLoader
 from center_point import CenterPoint
 import os
+import torch.nn as nn
+from functools import partial
+import torch.optim as optim
+from fastai_optim import OptimWrapper
 from torch.utils.tensorboard import SummaryWriter
 
 
 writer = SummaryWriter('../runs/center_point')
+
+
+def build_optimizer(model, optim_cfg):
+    def children(m: nn.Module):
+        return list(m.children())
+
+    def num_children(m: nn.Module) -> int:
+        return len(children(m))
+
+    flatten_model = lambda m: sum(map(flatten_model, m.children()), []) if num_children(m) else [m]
+    get_layer_groups = lambda m: [nn.Sequential(*flatten_model(m))]
+
+    optimizer_func = partial(optim.Adam, betas=(0.9, 0.99))
+    optimizer = OptimWrapper.create(
+        optimizer_func, 3e-3, get_layer_groups(model), wd=optim_cfg["WEIGHT_DECAY"], true_wd=True, bn_wd=True
+    )
+
+    return optimizer
 
 
 def train_one_epoch(epoch_index, dataloader, model, optimizer, device):
@@ -95,11 +117,13 @@ def main():
             CenterPointConfig["TRAIN_CONFIG"]["PRE_TRAINED_WEIGHTS_PATH"], map_location=device)
 
     # Step 3: Start training
-    optimizer = torch.optim.Adam(
-        params=center_point_model.parameters(),
-        lr=CenterPointConfig["OPTIMIZATION"]["LEARNING_RATE"],
-        weight_decay=CenterPointConfig["OPTIMIZATION"]["WEIGHT_DECAY"]
-    )
+    # optimizer = torch.optim.Adam(
+    #     params=center_point_model.parameters(),
+    #     lr=CenterPointConfig["OPTIMIZATION"]["LEARNING_RATE"],
+    #     weight_decay=CenterPointConfig["OPTIMIZATION"]["WEIGHT_DECAY"]
+    # )
+
+    optimizer = build_optimizer(model=center_point_model, optim_cfg=CenterPointConfig["OPTIMIZATION"])
 
     max_epochs = CenterPointConfig["TRAIN_CONFIG"]["MAX_EPOCHS"]
     for epoch_index in range(max_epochs):
