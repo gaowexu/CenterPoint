@@ -375,7 +375,7 @@ class KITTI2SmartDatasetConverter(object):
 
 if __name__ == "__main__":
     converter = KITTI2SmartDatasetConverter(
-        kitti_dataset_root_dir="/home/xuzhu/Solutions/SmartPCDet/dataset/KITTI_3D_OBJECT_DETECTION_DATASET/training",
+        kitti_dataset_root_dir="/home/gaowei/Desktop/KITTI_3D_OBJECT_DETECTION_DATASET/training",
         dump_dataset_root_dir="../dataset/"
     )
 
