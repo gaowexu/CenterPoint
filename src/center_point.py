@@ -155,7 +155,6 @@ class CenterPoint(nn.Module):
             "target_boxes": list(),
             "inds": list(),
             "masks": list(),
-            "heatmap_masks": list()
         }
 
         all_names = np.array(["bg", *self._center_point_config["CLASS_NAMES"]])

@@ -62,7 +62,7 @@ class PointPillarScatter(nn.Module):
         # 将画布转化为四维，维度信息为 (batch_size, C, nx, ny), 文章中 C=64
         batch_canvas = batch_canvas.view(batch_size, self._in_channels, self._nx, self._ny)
 
-        # 索引反向过来
-        batch_canvas = torch.flip(batch_canvas, dims=[2])
+        # # 索引反向过来
+        # batch_canvas = torch.flip(batch_canvas, dims=[2])
 
         return batch_canvas

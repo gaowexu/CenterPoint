@@ -11,3 +11,4 @@ SharedArray==3.2.1
 spconv-cu113==2.1.21
 pillow==9.0.1
 open3d==0.13.0
+tensorboard==2.8.0
