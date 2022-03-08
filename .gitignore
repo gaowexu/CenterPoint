@@ -9,3 +9,6 @@ src/__pycache__/
 weights
 runs
 db_info
+SmartCenterPoint.egg-info/
+build
+*.so
