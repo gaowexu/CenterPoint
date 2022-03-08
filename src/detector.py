@@ -150,12 +150,12 @@ if __name__ == "__main__":
         point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"],
         max_num_points_per_voxel=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_POINTS_PER_VOXEL"],
         max_num_voxels=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_VOXELS"]["val"],
-        model_full_path="../weights/center_point_epoch_110.pth"
+        model_full_path="../weights/center_point_epoch_140.pth"
     )
 
-    for sample_index in range(0, 28):
-        sample_name = str(sample_index).zfill(6)
+    val_sample_names = [name.strip() for name in open("../dataset/splits/val.txt", "r").readlines() if name.strip()]
 
+    for sample_name in val_sample_names:
         # construct test lidar frames
         sample_lidar_data = np.load("../dataset/lidar_data/{}.npy".format(sample_name))
         ground_truth_data = json.load(open("../dataset/ground_truth/{}.json".format(sample_name), "r"))
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         gt_boxes = list()
         gt_labels = list()
         for label in ground_truth_data:
-            if label["type"] == "DontCare":
+            if label["type"] not in CenterPointConfig["CLASS_NAMES"]:
                 continue
 
             gt_boxes.append(label["bbox"])
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         roi_labels = roi_labels.cpu().detach().numpy()[0]
         print("roi_scores = {}".format(roi_scores))
 
-        confidence_thresh = 0.5
+        confidence_thresh = 0.50
         selected_index = roi_scores > confidence_thresh
         rois = rois[selected_index]
         roi_scores = roi_scores[selected_index]
