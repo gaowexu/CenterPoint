@@ -117,7 +117,7 @@ class CarlaPointsWithGTVisualizer(object):
                 ground_truth.append(label)
 
             sample_name_without_suffix = sample_name.split(".pkl")[0]
-            np.save(os.path.join(self._lidar_data_root_dir,  sample_name_without_suffix + "npy"), points)
+            np.save(os.path.join(self._lidar_data_root_dir,  sample_name_without_suffix + ".npy"), points)
             json.dump(
                 obj=ground_truth,
                 fp=open(os.path.join(self._ground_truth_root_dir, sample_name_without_suffix + ".json"), "w"),
@@ -198,7 +198,7 @@ class CarlaPointsWithGTVisualizer(object):
 
 if __name__ == "__main__":
     visualizer = CarlaPointsWithGTVisualizer(
-        carla_samples_root_dir="/home/xuzhu/Downloads/carla_data",
+        carla_samples_root_dir="/mnt/sdc/carla_data",
         dataset_root_dir="../carla_dataset"
     )
 

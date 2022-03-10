@@ -12,3 +12,10 @@ db_info
 SmartCenterPoint.egg-info/
 build
 *.so
+carla_dataset
+carla_db_info
+kitti_db_info
+kitti_weights
+carla_weights
+
+

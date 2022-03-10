@@ -6,14 +6,14 @@
 #     "CLASS_NAMES": ['Cyclist', 'Car', 'Pedestrian'],
 #     "VOXEL_SIZE": [0.16, 0.16, 4.0],
 #     "HEAD_INPUT_CHANNELS": 384,
-#     "MODEL_SAVE_ROOT_DIR": "../weights/",
+#     "MODEL_SAVE_ROOT_DIR": "../kitti_weights/",
 #
 #     "DATASET_CONFIG": {
 #         "RAW_DATASET_ROOT_DIR": "../dataset",
-#         "GT_OBJECTS_SAVE_ROOT_DIR": "../db_info/train_gt_objects/",
-#         "TRAIN_CATEGORY_GT_LUT_FULL_PATH": "../db_info/train_category_gt_lut.json",
-#         "TRAIN_SAMPLES_LABEL_ROOT_DIR": "../db_info/train/",
-#         "VAL_SAMPLES_LABEL_ROOT_DIR": "../db_info/val/",
+#         "GT_OBJECTS_SAVE_ROOT_DIR": "../kitti_db_info/train_gt_objects/",
+#         "TRAIN_CATEGORY_GT_LUT_FULL_PATH": "../kitti_db_info/train_category_gt_lut.json",
+#         "TRAIN_SAMPLES_LABEL_ROOT_DIR": "../kitti_db_info/train/",
+#         "VAL_SAMPLES_LABEL_ROOT_DIR": "../kitti_db_info/val/",
 #         "FILTER_BY_MIN_POINTS": [
 #             # ("Misc", 12),
 #             ("Cyclist", 12),
@@ -145,7 +145,7 @@
 
 
 CenterPointConfig = {
-    "POINT_CLOUD_RANGE": [0, -80.0, -2.0, 80.0, 80.0, 2.0],
+    "POINT_CLOUD_RANGE": [0, -79.36, -2.0, 79.36, 79.36, 2.0],
     "CLASS_NAMES": ['car'],
     "VOXEL_SIZE": [0.16, 0.16, 4.0],
     "HEAD_INPUT_CHANNELS": 384,
@@ -195,7 +195,7 @@ CenterPointConfig = {
 
     "POST_PROCESSING_CONFIG": {
         "SCORE_THRESH": 0.1,
-        "POST_CENTER_LIMIT_RANGE": [0, -80.0, -2.0, 80.0, 80.0, 2.0],
+        "POST_CENTER_LIMIT_RANGE": [0, -79.36, -2.0, 79.36, 79.36, 2.0],
         "MAX_OBJS_PER_SAMPLE": 500,
         "NMS_TYPE": "nms_gpu",
         "NMS_THRESH": 0.20,
@@ -235,7 +235,7 @@ CenterPointConfig = {
     },
 
     "TRAIN_CONFIG": {
-        "BATCH_SIZE": 8,
+        "BATCH_SIZE": 4,
         "MAX_EPOCHS": 400,
         "PRE_TRAINED_WEIGHTS_PATH": None,
     },
