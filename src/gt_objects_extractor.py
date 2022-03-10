@@ -58,6 +58,9 @@ class GTObjectsExtractor(object):
                           1 = partly occluded 2 = largely occluded, 3 = unknown
         :return:
         """
+        if sum(box2d) < 0:  # not valid, because for carla environment, no 2d bounding boxes provided
+            return 0
+
         height = float(box2d[3]) - float(box2d[1]) + 1
         if height >= 40 and truncation <= 0.15 and occlusion <= 0:
             level_str = 'Easy'
