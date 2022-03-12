@@ -52,7 +52,8 @@ def train_one_epoch(epoch_index, dataloader, model, optimizer, device):
         )
 
         # assign targets
-        model.assign_targets(gt_boxes=batch_gt_3d_boxes_list, feature_map_size=[216, 248])
+        # model.assign_targets(gt_boxes=batch_gt_3d_boxes_list, feature_map_size=[216, 248]) # for KITTI dataset
+        model.assign_targets(gt_boxes=batch_gt_3d_boxes_list, feature_map_size=[248, 496])  # for carla dataset
 
         # compute loss
         loss, tb_dict = model.get_loss()
