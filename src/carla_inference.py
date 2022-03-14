@@ -164,10 +164,12 @@ class CarlaDetector(object):
             points_geometry_sequence.append(point_cloud)
 
             # Create line set geometry for boxes visualization
+            gt_line_set_list = list()
             for i in range(gt_boxes.shape[0]):
                 gt_line_set, box3d = CarlaDetector.translate_boxes_to_open3d_instance(gt_boxes[i])
                 gt_line_set.paint_uniform_color((1.0, 0.0, 0.0))
-                gt_line_set_geometry_sequence.append(gt_line_set)
+                gt_line_set_list.append(gt_line_set)
+            gt_line_set_geometry_sequence.append(gt_line_set_list)
 
             # Inference with pre-trained model
             point_clouds_frames = [points]
@@ -178,13 +180,15 @@ class CarlaDetector(object):
             roi_labels = roi_labels[selected_index]
 
             # Create predicted bounding boxes line set
+            pred_line_set_list = list()
             for i in range(rois.shape[0]):
                 pred_line_set, box3d = CarlaDetector.translate_boxes_to_open3d_instance(rois[i].cpu().detach().numpy())
                 pred_line_set.paint_uniform_color((0.0, 1.0, 0.0))
-                pred_line_set_geometry_sequence.append(pred_line_set)
+                pred_line_set_list.append(pred_line_set)
+            pred_line_set_geometry_sequence.append(pred_line_set_list)
 
         t2 = time.time()
-        print("Time cost for each lidar sweep = {} seconds".format((t2 - t1) / 200))
+        print("Time cost for each lidar sweep = {} seconds".format((t2 - t1) / len(sample_names)))
 
         # Open3d visualization
         vis = open3d.visualization.Visualizer()
@@ -194,11 +198,13 @@ class CarlaDetector(object):
 
         to_reset = True
         for index, point_cloud_geo in enumerate(points_geometry_sequence):
-            gt_line_set_geo = gt_line_set_geometry_sequence[index]
-            pred_line_set_geo = pred_line_set_geometry_sequence[index]
+            gt_line_set_geo_list = gt_line_set_geometry_sequence[index]
+            pred_line_set_geo_list = pred_line_set_geometry_sequence[index]
             vis.add_geometry(point_cloud_geo, False)
-            vis.add_geometry(gt_line_set_geo, False)
-            vis.add_geometry(pred_line_set_geo, False)
+            for gt_line_set_geo in gt_line_set_geo_list:
+                vis.add_geometry(gt_line_set_geo, False)
+            for  pred_line_set in pred_line_set_geo_list:
+                vis.add_geometry(pred_line_set, False)
 
             # draw origin
             axis_pcd = open3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
@@ -226,7 +232,7 @@ if __name__ == "__main__":
         point_cloud_range=CenterPointConfig["POINT_CLOUD_RANGE"],
         max_num_points_per_voxel=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_POINTS_PER_VOXEL"],
         max_num_voxels=CenterPointConfig["DATASET_CONFIG"]["MAX_NUM_VOXELS"]["val"],
-        model_full_path="../carla_weights/center_point_epoch_20.pth"
+        model_full_path="../carla_weights/center_point_epoch_29.pth"
     )
 
     detector.detect()

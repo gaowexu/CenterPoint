@@ -164,7 +164,7 @@ CenterPointConfig = {
         "MAX_NUM_POINTS_PER_VOXEL": 100,
         "MAX_NUM_VOXELS": {
             "train": 16000,
-            "val": 40000,
+            "val": 9000,        # only for low memory GPU
         }
     },
 
